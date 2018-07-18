@@ -1,0 +1,64 @@
+@font-face { 
+    font-family: 'meine-schrift';
+    src: url('fonts/ClementePDaa-Hairline.ttf') format('truetype'); 
+}
+
+/*Register*/
+.block_register {
+    color: rgb(216, 216, 219);
+    font-family: 'meine-schrift';
+}
+
+/*Schon  Regestriert*/
+.block_register  a{
+    color: rgb(216, 216, 219);
+    font-family: 'meine-schrift';
+}
+
+/* Login */
+.block_login {
+    color: rgb(216, 216, 219);
+    font-family: 'meine-schrift';
+}
+
+h2 {
+    font-size: 24px;
+    margin-top: 10px;
+    font-family: 'meine-schrift';
+    letter-spacing: 0.1em;
+    color: azure;
+}
+
+.login_button {
+    background-color: #4CAF50; /* Green */
+    color: white;
+    text-align: center;
+    font-size: 16px;
+    padding: 10px 45px;
+    border: none;
+}
+
+input {
+    float: center;
+    margin-top: 5px;
+    padding-right: 10px;
+}
+
+.button {
+    background-color: #4CAF50; /* Green */
+    color: white;
+    text-align: center;
+    font-size: 16px;
+    padding: 10px 25px;
+    border: none;
+}
+
+.button:hover {
+    background-color: rgb(6, 42, 71);
+    color: white;
+}
+
+.login_button{
+    padding-right: 50px;
+    text-align: center; 
+} 

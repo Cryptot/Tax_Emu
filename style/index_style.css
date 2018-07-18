@@ -1,0 +1,125 @@
+@font-face { 
+    font-family: 'meine-schrift';
+    src: url('fonts/ClementePDaa-Hairline.ttf') format('truetype'); 
+}
+
+body{
+    /*background-image: url(IMG_1151.png);*/
+    background-repeat: no-repeat;
+    background-color: bisque;
+}
+.menubar {
+    font-family: 'meine-schrift';
+    overflow: hidden;
+    background-color: #333;
+    letter-spacing: 0.1em;
+}
+
+.menubar a {
+    float: left;
+    font-size: 16px;
+    color: white;
+    text-align: center;
+    padding-top: 14px;
+    padding-left: 16px;
+    padding-bottom: 16px;
+    padding-right: 16px;
+    text-decoration: none;
+
+}
+
+.dropdown {
+    float: right;
+    overflow: hidden;
+
+}
+
+.dropdown .dropbtn {
+    font-size: 16px;    
+    border: none;
+    outline: none;
+    color: white;
+    padding: 14px 16px;
+    background-color: inherit;
+    font-family: inherit;
+    margin: 0;
+    letter-spacing: 0.1em;
+}
+
+.menubar a:hover, .dropdown:hover .dropbtn {
+    background-color: rgb(150, 150, 150);
+    color: rgb(255, 255, 255);
+}
+
+.dropdown-content {
+    display: none;
+    /* Ist dafür das es außerhalb des divblocks angezeigt wird */
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 160px;
+}
+
+.dropdown-content a {
+    float: none;
+    color: rgb(163, 142, 142);
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    text-align: left;
+}
+
+.dropdown-content a:hover {
+    background-color: rgb(0, 0, 0);
+    
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+    /*das Dropdown menu Anzeigen bei hover*/
+}
+
+h1 {
+    background-color: rgb(13, 51, 77);
+    text-align: center;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    margin-left: 60px;
+    margin-right: 60px;
+    color: white;
+    font-family: 'meine-schrift';
+    letter-spacing: 0.1em;
+    
+}
+
+.block_login, .block_news, .block_register {
+    float: left;
+    padding: 2%;
+    margin: 1%;
+    font-family: 'meine-schrift';
+    letter-spacing: 0.1em;
+}
+
+/*register_design erweitert*/
+.block_register {
+    float: left;
+    background: rgb(46, 47, 48);
+}
+
+.block_login {
+    padding-bottom: 5px;
+   float: left;
+   background: rgb(46, 47, 48);
+}
+
+.block_news {
+    padding-right: 55px; 
+    color: aliceblue;
+    width: 55%;
+    background: rgb(3, 29, 56);
+}
+
+.fussbereich {
+    margin-top: 600px;
+    text-align: center;
+
+}
