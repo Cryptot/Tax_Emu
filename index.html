@@ -1,0 +1,134 @@
+<!Doctype html>
+<html>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" type="text/css" href="style/index_style.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="style/register_login_design.css" media="screen" />
+    <head>
+           
+  <title>Revolutionary</title>
+</head>
+<body>
+    <header>
+        <div class="menubar">
+            <a href="#home">Home</a>
+            <a href="#news">News</a>
+            <div class="dropdown">
+              <button class="dropbtn">Dropdown 
+              </button>
+              <div class="dropdown-content">
+                <a href="#">Link 1</a>
+                <a href="#">Link 2</a>
+                <a href="#">Link 3</a>
+              </div>
+            </div> 
+          </div>
+
+        <h1>Revolutionary Exchange</h1>
+        
+    </header>
+        <div class = "row">
+            <div class="block_register">
+                <form action="registration.php" method="post">
+                    <h2>Registration</h2>
+                        <p>Name:<br>
+                        <input type="varchar" name="name"> <p></p>
+                        
+                        First Name:<br>
+                        <input type="varchar" name="firstName"><p></p>
+                        
+                        EMail:<br>
+                        <input type="text" name="email"><p></p>
+                        
+                        Password:<br>
+                        <input type="password" name="password"><p></p>
+                        <input type="button" class="button" value="Regestrieren"></p><br>
+                <span style="color: white">  <a href="login.php">Schon Regesteiert?</a> </span>
+            </form>
+        </div>
+        <div class="block_news">
+            
+                <h1>BTCUSD</h1>
+                <table style="height: 397px; width: 362px;">
+                    <tbody>
+                    <tr>
+                        <td style="width: 250px;">Price of last highest bid</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Size of the last highest bid</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Price of last lowest ask</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Size of the last lowest ask</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Amount that the last price has changed since yesterday</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Amount that the price has changed expressed in percentage terms</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Price of the last trade</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Daily volume</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Daily high</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td style="width: 250px;">Daily low</td>
+                        <td style="width: 250px;">&nbsp;</td>
+                    </tr>
+                    </tbody>
+                </table>
+          
+            <script type="text/javascript" src="basic_example.js"></script>
+            
+        </div>
+        
+        <div class = "row">
+            <div class="block_login">
+                <form action="login.php" method="post">
+                    <h2>Login</h2>
+                        <p>
+                        EMail:<br>
+                        <input type="text" name="email"><p></p>
+                        
+                        Password:<br>
+                        <input type="password" name="password"><p></p>
+                        <input class = 'login_button'type="button" class="button" value="Login"></p><br>
+            </form>
+        </div>
+    </div>
+    <footer>
+        <br>
+        <br>
+        <div class="fussbereich">
+            <p>Copyright by Enam Solaimani</p>
+        </div>
+
+        <!-- PDF EXPORT -->
+
+        <a href="#" onclick = "HTMLtoPDF()">Link 1</a>
+        <div id = "HTMLtoPDF">
+            <p> JAJAJAJ </p>
+        </div>
+        <script src = "js/jspdf.js"></script>
+        <script src = "js/jquery-2.1.3.js"></script>
+        <script src = "js/pdfFromHTML.js"></script>
+
+    </footer>
+</body>
+</html>
