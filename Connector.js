@@ -102,7 +102,7 @@ function BookData(snapshotData) {
         let size = snapshotData[i][2];
         let total = price * size;
         sum += total;
-        this.bid.push([sum, total, size, price])
+        this.bid.push([round(sum, 2), round(total, 2), size, price])
     }
 
     sum = 0;
@@ -112,7 +112,7 @@ function BookData(snapshotData) {
         let size = Math.abs(snapshotData[i][2]);
         let total = Math.abs(price * size);
         sum += total;
-        this.ask.push([sum, total, size, price])
+        this.ask.push([round(sum, 2), round(total, 2), size, price])
     }
     $('#ask').DataTable({
         data: this.ask,
@@ -161,7 +161,7 @@ BookData.prototype.update = function (updateData) {
     } else if (count > 0) {
         let total = Math.abs(price * size);
 
-        let new_row = [0, total, Math.abs(size), price];
+        let new_row = [0, round(total, 2), Math.abs(size), price];
 
         //bids
         if (size > 0) {
@@ -174,7 +174,7 @@ BookData.prototype.update = function (updateData) {
                     //update row
                     if (this.bid[i][3] === price) {
                         this.bid[i][2] = Math.abs(size);
-                        this.bid[i][1] = Math.abs(this.bid[i][2] * price);
+                        this.bid[i][1] = round(Math.abs(this.bid[i][2] * price), 2);
                         break;
                     }
                     //insert row
@@ -188,7 +188,7 @@ BookData.prototype.update = function (updateData) {
             let sum = 0;
             for (let i = 0; i < this.bid.length; i++) {
                 sum += this.bid[i][1];
-                this.bid[i][0] = sum;
+                this.bid[i][0] = round(sum, 2);
             }
         }
         //asks
@@ -203,7 +203,7 @@ BookData.prototype.update = function (updateData) {
                     //update row
                     if (this.ask[i][3] === price) {
                         this.ask[i][2] = Math.abs(size);
-                        this.ask[i][1] = Math.abs(this.ask[i][3] * price);
+                        this.ask[i][1] = round(Math.abs(this.ask[i][2] * price), 2);
                         break;
                     }
                     //insert row
@@ -217,7 +217,7 @@ BookData.prototype.update = function (updateData) {
             let sum = 0;
             for (let i = 0; i < this.ask.length; i++) {
                 sum += this.ask[i][1];
-                this.ask[i][0] = sum;
+                this.ask[i][0] = round(sum, 2);
             }
         }
     }
