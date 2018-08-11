@@ -39,7 +39,7 @@ let subscriptionManager = {
     },
 
 
-    requestBookSubscription: function(symbol, precision = "P0", frequency = "F1", length = "25") {
+    requestBookSubscription: function (symbol, precision = "P0", frequency = "F1", length = "25") {
         const action = {
             "event": "subscribe",
             "channel": "book",
@@ -159,7 +159,7 @@ BookData.prototype.update = function (updateData) {
         //bids
         if (size > 0) {
             //append dataset
-            if (price < this.bid[this.bid.length]) {
+            if ( this.bid.length === 0 || price < this.bid[this.bid.length-1]) {
                 this.bid.push(new_row);
             }
             //insert dataset
@@ -185,7 +185,7 @@ BookData.prototype.update = function (updateData) {
         //asks
         if (size < 0) {
             //append dataset
-            if (price > this.ask[this.ask.length]) {
+            if (this.ask.length === 0 || price > this.ask[this.ask.length-1]) {
                 this.ask.push(new_row);
             }
             //insert dataset
@@ -208,6 +208,10 @@ BookData.prototype.update = function (updateData) {
             }
         }
     }
+    const e1 = document.getElementById("table-ask");
+    tableCreate(e1, this.ask);
+    const e2 = document.getElementById("table-bid");
+    tableCreate(e2, this.bid)
 
 };
 
@@ -230,7 +234,8 @@ let DataHandler = {
 
     delete: function (chanId) {
         this.dataObjects.remove(chanId);
-    }
+    },
+
 
 };
 
@@ -328,4 +333,32 @@ ChannelDescriptor.prototype.equals = function (other) {
 
 Connector.connect();
 subscriptionManager.requestBookSubscription("tBTCUSD");
+
+
+
+
+function tableCreate(el, data)
+{
+    while (el.firstChild) {
+        el.removeChild(el.firstChild);
+    }
+
+    let tbl  = document.createElement("table");
+    //let h = tbl.createTHead();
+    //h.insertRow();
+    //tbl.insert();
+    tbl.style.width  = "70%";
+    for (let i = 0; i < data.length; ++i)
+    {
+        const tr = tbl.insertRow();
+        for (const key of Object.keys(data[i]))
+        {
+            const td = tr.insertCell();
+            td.appendChild(document.createTextNode(data[i][key].toString()));
+
+        }
+    }
+    el.appendChild(tbl);
+}
+
 
