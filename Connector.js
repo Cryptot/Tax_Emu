@@ -126,11 +126,13 @@ function BookData(snapshotData) {
             price: price
         });
     }
-
-    console.log("DONE");
 }
 
 BookData.prototype.update = function (updateData) {
+    /*
+    updates the order book with the given data
+    @param {array} updateData
+     */
     let price = updateData[0];
     let count = updateData[1];
     let size = updateData[2];
@@ -158,21 +160,23 @@ BookData.prototype.update = function (updateData) {
 
         //bids
         if (size > 0) {
-            //append dataset
-            if ( this.bid.length === 0 || price < this.bid[this.bid.length-1]) {
+            //append row
+            if (this.bid.length === 0 || price < this.bid[this.bid.length - 1]["price"]) {
                 this.bid.push(new_row);
-            }
-            //insert dataset
-            for (let i = 0; i < this.bid.length; i++) {
+            } else {
 
-                if (this.bid[i].price === price) {
-                    this.bid[i].size = Math.abs(size);
-                    this.bid[i].total = Math.abs(this.bid[i].size * price);
-                    break;
-                }
-                if (price > this.bid[i].price) {
-                    this.bid.splice(i, 0, new_row);
-                    break;
+                for (let i = 0; i < this.bid.length; i++) {
+                    //update row
+                    if (this.bid[i].price === price) {
+                        this.bid[i].size = Math.abs(size);
+                        this.bid[i].total = Math.abs(this.bid[i].size * price);
+                        break;
+                    }
+                    //insert row
+                    if (price > this.bid[i].price) {
+                        this.bid.splice(i, 0, new_row);
+                        break;
+                    }
                 }
             }
             //update sum
@@ -184,20 +188,24 @@ BookData.prototype.update = function (updateData) {
         }
         //asks
         if (size < 0) {
-            //append dataset
-            if (this.ask.length === 0 || price > this.ask[this.ask.length-1]) {
+            //append row
+            if (this.ask.length === 0 || price > this.ask[this.ask.length - 1]["price"]) {
                 this.ask.push(new_row);
-            }
-            //insert dataset
-            for (let i = 0; i < this.ask.length; i++) {
-                if (this.ask[i].price === price) {
-                    this.ask[i].size = Math.abs(size);
-                    this.ask[i].total = Math.abs(this.ask[i].size * price);
-                    break;
-                }
-                if (price < this.ask[i].price) {
-                    this.ask.splice(i, 0, new_row);
-                    break;
+            } else {
+
+
+                for (let i = 0; i < this.ask.length; i++) {
+                    //update row
+                    if (this.ask[i].price === price) {
+                        this.ask[i].size = Math.abs(size);
+                        this.ask[i].total = Math.abs(this.ask[i].size * price);
+                        break;
+                    }
+                    //insert row
+                    if (price < this.ask[i].price) {
+                        this.ask.splice(i, 0, new_row);
+                        break;
+                    }
                 }
             }
             //update sum
@@ -213,7 +221,8 @@ BookData.prototype.update = function (updateData) {
     const e2 = document.getElementById("table-bid");
     tableCreate(e2, this.bid)
 
-};
+}
+;
 
 
 let DataHandler = {
@@ -222,10 +231,12 @@ let DataHandler = {
     update: function (receivedFromServer) {
         const chanId = receivedFromServer[0];
         const updateData = receivedFromServer[1];
-        this.dataObjects.get(chanId).update(updateData)
+        this.dataObjects.get(chanId).update(updateData);
+
     },
 
     create: function (receivedFromServer) {
+
         const chanId = receivedFromServer[0];
         const snapshotData = receivedFromServer[1];
         this.dataObjects.set(chanId, new BookData(snapshotData));
@@ -335,24 +346,19 @@ Connector.connect();
 subscriptionManager.requestBookSubscription("tBTCUSD");
 
 
-
-
-function tableCreate(el, data)
-{
+function tableCreate(el, data) {
     while (el.firstChild) {
         el.removeChild(el.firstChild);
     }
 
-    let tbl  = document.createElement("table");
+    let tbl = document.createElement("table");
     //let h = tbl.createTHead();
     //h.insertRow();
     //tbl.insert();
-    tbl.style.width  = "70%";
-    for (let i = 0; i < data.length; ++i)
-    {
+    tbl.style.width = "70%";
+    for (let i = 0; i < data.length; ++i) {
         const tr = tbl.insertRow();
-        for (const key of Object.keys(data[i]))
-        {
+        for (const key of Object.keys(data[i])) {
             const td = tr.insertCell();
             td.appendChild(document.createTextNode(data[i][key].toString()));
 
