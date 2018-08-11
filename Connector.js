@@ -102,6 +102,151 @@ function BookData(snapshotData) {
         let size = snapshotData[i][2];
         let total = price * size;
         sum += total;
+        this.bid.push([sum, total, size, price])
+    }
+
+    sum = 0;
+    for (let i = splitter; i < snapshotData.length; i++) {
+
+        let price = snapshotData[i][0];
+        let size = Math.abs(snapshotData[i][2]);
+        let total = Math.abs(price * size);
+        sum += total;
+        this.ask.push([sum, total, size, price])
+    }
+    $('#ask').DataTable({
+        data: this.ask,
+        columns: [
+            {title: "Sum"},
+            {title: "Total"},
+            {title: "Size"},
+            {title: "Price"},
+        ]
+    });
+
+    $('#bid').DataTable({
+        data: this.bid,
+        columns: [
+            {title: "Sum"},
+            {title: "Total"},
+            {title: "Size"},
+            {title: "Price"},
+        ]
+    });
+}
+
+BookData.prototype.update = function (updateData) {
+    let price = updateData[0];
+    let count = updateData[1];
+    let size = updateData[2];
+
+    /*
+    0: sum
+    1: total
+    2: size
+    3: price
+     */
+
+    if (count === 0) {
+        let container = (size === -1) ? this.ask : this.bid;
+        let removeIndex = container.length;
+        for (let i = 0; i < container.length; i++) {
+            if (container[i][3] === price) {
+                removeIndex = i;
+                break;
+            }
+        }
+        container.splice(removeIndex, 1)
+
+    } else if (count > 0) {
+        let total = Math.abs(price * size);
+
+        let new_row = [0, total, Math.abs(size), price];
+
+        //bids
+        if (size > 0) {
+            //append row
+            if (this.bid.length === 0 || price < this.bid[this.bid.length - 1][3]) {
+                this.bid.push(new_row);
+            } else {
+
+                for (let i = 0; i < this.bid.length; i++) {
+                    //update row
+                    if (this.bid[i][3] === price) {
+                        this.bid[i][2] = Math.abs(size);
+                        this.bid[i][1] = Math.abs(this.bid[i][2] * price);
+                        break;
+                    }
+                    //insert row
+                    if (price > this.bid[i][3]) {
+                        this.bid.splice(i, 0, new_row);
+                        break;
+                    }
+                }
+            }
+            //update sum
+            let sum = 0;
+            for (let i = 0; i < this.bid.length; i++) {
+                sum += this.bid[i][1];
+                this.bid[i][0] = sum;
+            }
+        }
+        //asks
+        if (size < 0) {
+            //append row
+            if (this.ask.length === 0 || price > this.ask[this.ask.length - 1][3]) {
+                this.ask.push(new_row);
+            } else {
+
+
+                for (let i = 0; i < this.ask.length; i++) {
+                    //update row
+                    if (this.ask[i][3] === price) {
+                        this.ask[i][2] = Math.abs(size);
+                        this.ask[i][1] = Math.abs(this.ask[i][3] * price);
+                        break;
+                    }
+                    //insert row
+                    if (price < this.ask[i][3]) {
+                        this.ask.splice(i, 0, new_row);
+                        break;
+                    }
+                }
+            }
+            //update sum
+            let sum = 0;
+            for (let i = 0; i < this.ask.length; i++) {
+                sum += this.ask[i][1];
+                this.ask[i][0] = sum;
+            }
+        }
+    }
+    let datatable1 = $('#ask').DataTable();
+    datatable1.clear();
+    datatable1.rows.add(this.ask);
+    datatable1.draw();
+
+    let datatable2 = $('#bid').DataTable();
+    datatable2.clear();
+    datatable2.rows.add(this.bid);
+    datatable2.draw();
+
+//$('#bid').data = this.bid;
+};
+/* legacy dataformat */
+function BookData2(snapshotData) {
+    console.log(snapshotData);
+    const splitter = snapshotData.length / 2;
+    this.bid = [];
+    this.ask = [];
+    let sum = 0;
+    for (let i = 0; i < splitter; i++) {
+
+
+        let price = snapshotData[i][0];
+        let size = snapshotData[i][2];
+        let total = price * size;
+        sum += total;
 
         this.bid.push({
             sum: sum,
@@ -127,10 +272,10 @@ function BookData(snapshotData) {
         });
     }
 }
-
-BookData.prototype.update = function (updateData) {
+/* legacy dataformat */
+BookData2.prototype.update = function (updateData) {
     /*
-    updates the order book with the given data
+    updates the order book with the given data (array of json-objects)
     @param {array} updateData
      */
     let price = updateData[0];
@@ -216,13 +361,7 @@ BookData.prototype.update = function (updateData) {
             }
         }
     }
-    const e1 = document.getElementById("table-ask");
-    tableCreate(e1, this.ask);
-    const e2 = document.getElementById("table-bid");
-    tableCreate(e2, this.bid)
-
-}
-;
+};
 
 
 let DataHandler = {
@@ -344,27 +483,3 @@ ChannelDescriptor.prototype.equals = function (other) {
 
 Connector.connect();
 subscriptionManager.requestBookSubscription("tBTCUSD");
-
-
-function tableCreate(el, data) {
-    while (el.firstChild) {
-        el.removeChild(el.firstChild);
-    }
-
-    let tbl = document.createElement("table");
-    //let h = tbl.createTHead();
-    //h.insertRow();
-    //tbl.insert();
-    tbl.style.width = "70%";
-    for (let i = 0; i < data.length; ++i) {
-        const tr = tbl.insertRow();
-        for (const key of Object.keys(data[i])) {
-            const td = tr.insertCell();
-            td.appendChild(document.createTextNode(data[i][key].toString()));
-
-        }
-    }
-    el.appendChild(tbl);
-}
-
-
