@@ -22,42 +22,62 @@ let subscriptionManager = {
 
     subscribedChannels: new Map(),
 
-    internalSubscribe: function (subscribeEvent) {
-        if (subscribeEvent["channel"] === "book") {
-            const ID = subscribeEvent["chanId"];
-            const CD = new ChannelDescriptor("book", subscribeEvent["pair"], subscribeEvent["symbol"]);
-            this.subscribedChannels.set(ID, CD)
-        }
+    subscriptionQueue: [],
 
+    /*
+    Handles a subscription event from the server
+
+    @param {Object} subscriptionEvent the subscription event form the server
+     */
+    internalSubscribe: function (subscriptionEvent) {
+        //if (subscriptionEvent["channel"] === "book") {
+        const ID = subscriptionEvent["chanId"];
+
+        for (let i = this.subscriptionQueue.length - 1; i >= 0; i--) {
+            const request = this.subscriptionQueue[i]["action"];
+            const observer = this.subscriptionQueue[i]["observer"];
+            if (this.responseMatchesRequest(subscriptionEvent, request)) {
+                this.subscriptionQueue.splice(i, 1);
+                this.subscribedChannels.set(ID, request);
+                ObserverHandler.requestData(observer["source"], observer["clientRequest"]);
+                break;
+            }
+        }
+        //}
     },
-    internalUnsubscribe: function (unsubscribeEvent) {
-        if (unsubscribeEvent["status"] === "OK") {
-            const ID = unsubscribeEvent["chanId"];
+    /*
+    Handles an unsubscription event from the server
+
+    @param {Object} unsubscriptionEvent the unsubscribe event form the server
+     */
+    internalUnsubscribe: function (unsubscriptionEvent) {
+        if (unsubscriptionEvent["status"] === "OK") {
+            const ID = unsubscriptionEvent["chanId"];
             DataHandler.delete(ID);
             this.subscribedChannels.delete(ID);
         }
     },
-
-
-    requestBookSubscription: function (symbol, precision = "P0", frequency = "F1", length = "25") {
-        const action = {
-            "event": "subscribe",
-            "channel": "book",
-            "symbol": symbol,
-            "prec": precision,
-            "freq": frequency,
-            "len": length
-        };
+    requestSubscription: function (action, observer) {
         const state = Connector.ws.readyState;
         if (state === WebSocket.OPEN) {
+            this.subscriptionQueue.push({action, observer});
             Connector.ws.send(JSON.stringify(action));
             return true;
+
         }
-        else
-            return false;
+        return false;
+
     },
 
-    requestBookUnsubscription: function (channelID) {
+    /*
+    Requests an unsubscription by sending the desired action to the server
+
+    @param {Number} channelID the channel's id
+
+    @returns whether the request has been sent to the server
+     */
+
+    requestUnsubscription: function (channelID) {
         const action = {
             "event": "unsubscribe",
             "channel": channelID
@@ -70,25 +90,74 @@ let subscriptionManager = {
         else
             return false;
     },
+    /*
+    Check if subscribeEventResponse is the response of the subscriptionRequest
 
-    getChanIDofChannelDescriptor: function (chanDesc) {
-        for (const cd of this.subscribedChannels.entries()) {
-            if (cd[1].equals(chanDesc))
-                return cd[0];
+    @param {Object} subscriptionEventResponse the response object
+    @param {Object} subscriptionRequest the request object
+
+    @returns {Boolean} is subscribeEventResponse the response of the subscriptionRequest
+     */
+    responseMatchesRequest: function (subscriptionEventResponse, subscriptionRequest) {
+        for (const key in subscriptionRequest) {
+            if (subscriptionRequest.hasOwnProperty(key) && key !== "event" && subscriptionEventResponse.hasOwnProperty(key) && subscriptionRequest[key] !== subscriptionEventResponse[key]) {
+                return false
+            }
+        }
+        return true;
+    },
+
+    /*
+    Get the id's channel name
+
+    @param {Number} channelID the channel's id
+
+    @returns the id's channel name
+     */
+    getChannelOfId: function (channelID) {
+        const subscriptionRequest = this.subscribedChannels.get(channelID);
+        return subscriptionRequest["channel"];
+    },
+
+
+    _requestEqualsRequest: function (request1, request2) {
+        for (const p in request1) {
+            if (request1.hasOwnProperty(p) && request2.hasOwnProperty(p) && request1[p] !== request2[p])
+                return false;
+            if (request1.hasOwnProperty(p) && !request2.hasOwnProperty(p))
+                return false;
+        }
+        return true;
+    },
+
+    isAlreadySubscribed: function (subscriptionRequest) {
+        for (let request in this.subscribedChannels.values()) {
+            if (this._requestEqualsRequest(request, subscriptionRequest))
+                return true;
+        }
+        return false;
+    },
+
+    getIdFromRequest: function (subscriptionRequest) {
+        for (const [id, request] of this.subscribedChannels.entries()) {
+            if (this._requestEqualsRequest(request, subscriptionRequest))
+                return id;
         }
         return undefined;
-    },
-
-    getChannelnameFromId: function (chanId) {
-        return this.subscribedChannels.get(chanId).channel
-    },
-
-    isChanIdBookChannel: function (chanId) {
-        return this.subscribedChannels.get(chanId).channel === "book"
     }
 
 };
 
+
+/*
+@constructor BookData
+the data format is:
+[
+  [sum, total, size, price]
+  ...
+]
+
+ */
 function BookData(snapshotData) {
     console.log(snapshotData);
     const splitter = snapshotData.length / 2;
@@ -114,26 +183,14 @@ function BookData(snapshotData) {
         sum += total;
         this.ask.push([round(sum, 2), round(total, 2), size, price])
     }
-    $('#ask').DataTable({
-        data: this.ask,
-        columns: [
-            {title: "Sum"},
-            {title: "Total"},
-            {title: "Size"},
-            {title: "Price"},
-        ]
-    });
-
-    $('#bid').DataTable({
-        data: this.bid,
-        columns: [
-            {title: "Sum"},
-            {title: "Total"},
-            {title: "Size"},
-            {title: "Price"},
-        ]
-    });
 }
+
+
+/*
+updates the order book
+
+@param {Array} updateData the API update data
+ */
 
 BookData.prototype.update = function (updateData) {
     let price = updateData[0];
@@ -221,19 +278,22 @@ BookData.prototype.update = function (updateData) {
             }
         }
     }
-    let datatable1 = $('#ask').DataTable();
-    datatable1.clear();
-    datatable1.rows.add(this.ask);
-    datatable1.draw();
-
-    let datatable2 = $('#bid').DataTable();
-    datatable2.clear();
-    datatable2.rows.add(this.bid);
-    datatable2.draw();
-
-//$('#bid').data = this.bid;
 };
-/* legacy dataformat */
+
+/*
+@constructor BookData2
+the data format is:
+[
+  {
+   sum: sum,
+   total: total,
+   size: size,
+   price: price
+  },
+  ...
+]
+
+ */
 function BookData2(snapshotData) {
     console.log(snapshotData);
     const splitter = snapshotData.length / 2;
@@ -272,11 +332,12 @@ function BookData2(snapshotData) {
         });
     }
 }
-/* legacy dataformat */
+
 BookData2.prototype.update = function (updateData) {
     /*
-    updates the order book with the given data (array of json-objects)
-    @param {array} updateData
+    updates the order book
+
+    @param {array} updateData the API update data
      */
     let price = updateData[0];
     let count = updateData[1];
@@ -363,29 +424,170 @@ BookData2.prototype.update = function (updateData) {
     }
 };
 
+let ObserverHandler = {
+    // TODO Maybe additional configs like data count etc.
+    observer: new Map(),
+
+    observerQueue: [],
+    /*
+    request:
+    { channel: "book",
+       count: INT
+       precision: INT
+
+     */
+    requestData: function (source, clientRequest) {
+        const apiRequest = this._convertToApiRequest(clientRequest);
+        const chanId = subscriptionManager.getIdFromRequest(apiRequest);
+        if (chanId === undefined) {
+            subscriptionManager.requestSubscription(apiRequest, {source, clientRequest});
+            //this.observerQueue.push([source, apiRequest]);
+        } else {
+            let obs = [];
+            if (this.observer.has(chanId)) {
+                obs = this.observer.get(chanId);
+                obs.push({source, clientRequest});
+            } else {
+                obs.push({source, clientRequest});
+            }
+            this.observer.set(chanId, obs);
+        }
+    },
+
+    _convertToApiRequest: function (clientRequest) {
+        if (clientRequest instanceof OrderBookRequest)
+            return {
+                event: "subscribe",
+                channel: "book",
+                len: (clientRequest["recordCount"] <= 25) ? "25" : "100",
+                freq: (clientRequest["updateRate"] === "realtime") ? "F0" : "F1",
+                prec: clientRequest["precision"],
+                symbol: "t" + clientRequest["currencyPair"]
+            };
+
+        if (clientRequest instanceof TickerRequest)
+            return {
+                event: "subscribe",
+                channel: "ticker",
+                symbol: "t" + clientRequest["currencyPair"]
+            };
+
+        if (clientRequest instanceof TradesRequest)
+            return {
+                event: "subscribe",
+                channel: "trades",
+                symbol: "t" + clientRequest["currencyPair"]
+            };
+
+
+    },
+    updateObserver: function (chanId) {
+
+
+        const obs = this.observer.get(chanId);
+        if (obs === undefined)
+            return;
+        const dataObject = DataHandler.dataObjects.get(chanId);
+        if (obs[0]["clientRequest"] instanceof OrderBookRequest) {
+            for (let i = 0; i < obs.length; i++) {
+                const clientRequest = obs[i]["clientRequest"];
+                const source = obs[i]["source"];
+                const eventData = (clientRequest === "ask") ? dataObject.ask.slice(0, clientRequest["recordCount"]) : dataObject.bid.slice(0, clientRequest["recordCount"]);
+                const event = new CustomEvent("data", {
+                    detail: {
+                        data: eventData,
+                    }
+                });
+                source.dispatchEvent(event);
+
+            }
+            return;
+        }
+        if (obs[0]["clientRequest"] instanceof TickerRequest) {
+            for (let i = 0; i < obs.length; i++) {
+                const clientRequest = obs[i]["clientRequest"];
+                const source = obs[i]["source"];
+                const eventData = dataObject.data.slice(0, clientRequest["recordCount"]);
+                const event = new CustomEvent("data", {
+                    detail: {
+                        data: eventData,
+                    }
+                });
+                source.dispatchEvent(event);
+            }
+        }
+
+
+    },
+    informObserver: function (chanId) {
+        //
+    }
+
+
+};
+
+function TickerData(snapshotData) {
+    this.data = [snapshotData];
+}
+
+TickerData.prototype.maxLength = 25;
+
+TickerData.prototype.update = function (updateData) {
+    updateData.splice(0, 0, +new Date());
+    if (this.data.length >= this.maxLength) {
+        this.data.splice(24, 1);
+        this.data.splice(0, 0, updateData);
+    }
+};
+
 
 let DataHandler = {
     dataObjects: new Map(),
 
+
+    /*
+    Handles an update message from the server
+
+    @param {Array} the API update message
+     */
     update: function (receivedFromServer) {
         const chanId = receivedFromServer[0];
         const updateData = receivedFromServer[1];
         this.dataObjects.get(chanId).update(updateData);
+        ObserverHandler.updateObserver(chanId);
 
     },
+    /*
+    Handles an snapshot message from the server
 
+    @param {Array} the API snapshot message
+     */
     create: function (receivedFromServer) {
 
         const chanId = receivedFromServer[0];
         const snapshotData = receivedFromServer[1];
-        this.dataObjects.set(chanId, new BookData(snapshotData));
+        const channel = subscriptionManager.getChannelOfId(chanId);
+        switch (channel) {
+            case "book":
+                this.dataObjects.set(chanId, new BookData(snapshotData));
+                break;
+            case "ticker":
+                this.dataObjects.set(chanId, new TickerData(snapshotData));
+                break;
+        }
+
+        ObserverHandler.updateObserver(chanId);
+
 
     },
+    /*
+    Delete the local channel data
 
+    @param {Number} chanId the channel's id
+     */
     delete: function (chanId) {
         this.dataObjects.remove(chanId);
     },
-
 
 };
 
@@ -393,6 +595,9 @@ let DataHandler = {
 let Connector = {
     url: "wss://api.bitfinex.com/ws/2",
 
+    /*
+    establish a connection with the websocket
+     */
     connect: function () {
 
         this.ws = new WebSocket(this.url);
@@ -400,7 +605,20 @@ let Connector = {
         this.ws.onmessage = MessageHandler.handle;
 
         this.ws.onopen = function () {
-            subscriptionManager.requestBookSubscription("tBTCUSD");
+            /*let action = {
+                "event": 'subscribe',
+                "channel": 'ticker',
+                "symbol": 'tBTCUSD'
+            };
+            Connector.ws.send(JSON.stringify(action));
+*/
+            let element = document.getElementById("ask");
+            element.addEventListener("data", function (event) {
+                console.log(event);
+
+            });
+            ObserverHandler.requestData(element,
+                new OrderBookRequest("P0", 10, "ask", "BTCUSD", "realtime"));
         };
         this.ws.onerror = function (err) {
 
@@ -411,75 +629,86 @@ let Connector = {
 
 let MessageHandler = {
 
-        callbacks: [],
+    callbacks: [],
 
-        eventTypes: Object.freeze({
-            error: "error",
-            info: "info",
-            subscribed: "subscribed",
-            unsubscribed: "unsubscribed",
-            pong: "pong"
-        }),
+    eventTypes: Object.freeze({
+        error: "error",
+        info: "info",
+        subscribed: "subscribed",
+        unsubscribed: "unsubscribed",
+        pong: "pong"
+    }),
 
-        handle: function (message) {
-            const receivedData = JSON.parse(message.data);
-            //console.log(receivedData);
+    /*
+    Handles every message send from the server
 
-            if (Array.isArray(receivedData)) {
-                // is heartbeat
-                if (receivedData.length === 2 && receivedData[1] === "hb") {
+    @param {Array} message the API message
+     */
+    handle: function (message) {
+        const receivedData = JSON.parse(message.data);
 
-                } else if (receivedData.length === 2 && Array.isArray(receivedData[1]))
-                    if (Array.isArray(receivedData[1][0])) {
-                        //is snapshot
-                        DataHandler.create(receivedData)
-                    } else {
-                        //is update
-                        DataHandler.update(receivedData)
-                    }
+        if (Array.isArray(receivedData)) {
+            // is heartbeat
+            const chanId = receivedData[0];
+            if (receivedData.length === 2 && receivedData[1] === "hb") {
 
-            } else if (receivedData.hasOwnProperty("event")) {
-                switch (receivedData.event) {
-                    case MessageHandler.eventTypes.error:
-
-
-                        break;
-
-                    case MessageHandler.eventTypes.info:
-                        break;
-
-                    case MessageHandler.eventTypes.subscribed:
-                        subscriptionManager.internalSubscribe(receivedData);
-
-                        break;
-
-                    case MessageHandler.eventTypes.unsubscribed:
-                        subscriptionManager.internalUnsubscribe(receivedData);
-
-                        break;
-                    case
-                    MessageHandler.eventTypes.pong
-                    :
-                        break;
+            } else if (receivedData.length === 2 && Array.isArray(receivedData[1]))
+                if (DataHandler.dataObjects.has(chanId)) {
+                    //is update
+                    DataHandler.update(receivedData)
+                } else {
+                    //is snapshot
+                    DataHandler.create(receivedData)
                 }
+
+        } else if (receivedData.hasOwnProperty("event")) {
+            switch (receivedData.event) {
+                case MessageHandler.eventTypes.error:
+                    console.log(receivedData);
+
+                    break;
+
+                case MessageHandler.eventTypes.info:
+                    break;
+
+                case MessageHandler.eventTypes.subscribed:
+                    console.log(receivedData);
+                    subscriptionManager.internalSubscribe(receivedData);
+
+                    break;
+
+                case MessageHandler.eventTypes.unsubscribed:
+                    subscriptionManager.internalUnsubscribe(receivedData);
+
+                    break;
+                case
+                MessageHandler.eventTypes.pong
+                :
+                    break;
             }
         }
     }
-;
+};
 
+function OrderBookRequest(precision, recordCount, askOrBid, currencyPair, updateRate) {
+    this.precision = precision;
+    this.recordCount = recordCount;
+    this.askOrBid = askOrBid;
+    this.currencyPair = currencyPair;
+    this.updateRate = updateRate;
 
-function ChannelDescriptor(channel, pair, symbol) {
-    this.channel = channel;
-    this.pair = pair;
-    this.symbol = symbol;
+}
+
+function TickerRequest(currencyPair, recordCount) {
+    this.currencyPair = currencyPair;
+    this.recordCount = recordCount;
+}
+
+function TradesRequest(currencyPair) {
+    this.currencyPair = currencyPair;
 }
 
 
-ChannelDescriptor.prototype.equals = function (other) {
-    if (other.hasOwnProperty("channel") && other.hasOwnProperty("pair") && other.hasOwnProperty("symbol")) {
-        return this.channel === other.channel && this.pair === other.pair && this.symbol === other.symbol;
-    }
-};
-
 Connector.connect();
-subscriptionManager.requestBookSubscription("tBTCUSD");
+
+
