@@ -219,6 +219,7 @@ function BookData(snapshotData) {
  * @param updateData the API update data
  */
 BookData.prototype.update = function (updateData) {
+    updateData = updateData[0];
     this.askUpdated = false;
     this.bidUpdated = false;
 
@@ -670,14 +671,7 @@ let Connector = {
                 console.log(event.detail.data);
 
             });
-            ObserverHandler.requestData(element, new TradesRequest("BTCUSD", 1, "sold"));
-
-            let element2 = document.getElementById("bid");
-            element2.addEventListener("data", function (event) {
-                console.log(event.detail.data);
-
-            });
-            ObserverHandler.requestData(element2, new TradesRequest("BTCUSD", 1, "bought"));
+            ObserverHandler.requestData(element, new OrderBookRequest("P0", 100, "ask", "BTCUSD", "notrealtime"));
 
         };
         this.ws.onerror = function (err) {
