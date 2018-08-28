@@ -4,16 +4,16 @@
 
     <meta charset="UTF-8">
     <title>Title</title>
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.min.css" media="screen" />
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.js"></script>
+    <link rel="stylesheet" type="text/css" href="table.css" media="screen" />
     <script src="Connector.js"></script>
+    <script src="table.js"></script>
 
 
 
 </head>
 <body>
-<table id="ask" class="display" width="100%"></table>
-<table id="bid" class="display" width="100%"></table>
+
+<order-book-view class="wrapper" data-askOrBid="bid" data-count="15" data-pair="BTCUSD"></order-book-view>
+
 </body>
 </html>

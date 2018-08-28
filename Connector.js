@@ -24,6 +24,8 @@ let subscriptionManager = {
 
     subscriptionQueue: [],
 
+    resubscriptionChannels: new Set(),
+
     /**
      * Handles a subscription event from the server
      * @param subscriptionEvent the subscription event from the server
@@ -48,8 +50,25 @@ let subscriptionManager = {
     internalUnsubscribe: function (unsubscriptionEvent) {
         if (unsubscriptionEvent["status"] === "OK") {
             const ID = unsubscriptionEvent["chanId"];
-            DataHandler.delete(ID);
-            this.subscribedChannels.delete(ID);
+            if (this.resubscriptionChannels.has(ID)) {
+                const observers = ObserverHandler.observer.get(ID);
+                DataHandler.delete(ID);
+                //Notify observer that data stream is closed
+                ObserverHandler.observer.delete(ID);
+                this.subscribedChannels.delete(ID);
+                for (let i = observers.length - 1; i >= 0; i--) {
+                    const source = observers[i]["source"];
+                    const clientRequest = observers[i]["clientRequest"];
+                    ObserverHandler.requestData(source, clientRequest);
+                }
+
+            } else {
+                DataHandler.delete(ID);
+                ObserverHandler.observer.delete(ID);
+                this.subscribedChannels.delete(ID);
+            }
+
+
         }
     },
     requestSubscription: function (action, observer, isAlreadySubscribed) {
@@ -77,7 +96,7 @@ let subscriptionManager = {
     requestUnsubscription: function (channelID) {
         const action = {
             "event": "unsubscribe",
-            "channel": channelID
+            "chanId": channelID
         };
         const state = Connector.ws.readyState;
         if (state === WebSocket.OPEN) {
@@ -153,7 +172,18 @@ let subscriptionManager = {
                 return true;
         }
         return false;
-    }
+    },
+
+    resubscribeAllChannels : function() {
+        for (const chanId of this.subscribedChannels.keys()) {
+            this.resubscriptionChannels.add(chanId);
+            this.requestUnsubscription(chanId);
+        }
+
+    },
+
+
+
 
 };
 
@@ -161,12 +191,12 @@ let subscriptionManager = {
 /**
  * the order book's data structure
  * [
- *   {
- *     sum: sum,
- *     total: total,
- *     size: size,
- *     price: price
- *   },
+ *   [
+ *     0: sum,
+ *     1: total,
+ *     2: size,
+ *     3: price
+ *   ],
  *   ...
  * ]
  * @param snapshotData
@@ -189,12 +219,12 @@ function BookData(snapshotData) {
         let total = price * size;
         sum += total;
 
-        this.bid.push({
-            sum: sum,
-            total: total,
-            size: size,
-            price: price
-        });
+        this.bid.push([
+            sum,
+            total,
+            size,
+            price
+        ]);
     }
 
     sum = 0;
@@ -205,12 +235,12 @@ function BookData(snapshotData) {
         let total = Math.abs(price * size);
         sum += total;
 
-        this.ask.push({
-            sum: sum,
-            total: total,
-            size: size,
-            price: price
-        });
+        this.ask.push([
+            sum,
+            total,
+            size,
+            price
+        ]);
     }
 }
 
@@ -238,7 +268,7 @@ BookData.prototype.update = function (updateData) {
         }
         let removeIndex = container.length;
         for (let i = 0; i < container.length; i++) {
-            if (container[i].price === price) {
+            if (container[i][3] === price) {
                 removeIndex = i;
                 break;
             }
@@ -248,31 +278,31 @@ BookData.prototype.update = function (updateData) {
     } else if (count > 0) {
         let total = Math.abs(price * size);
 
-        let new_row = {
-            sum: 0,
-            total: total,
-            size: Math.abs(size),
-            price: price
-        };
+        let newRow = [
+            0,
+            total,
+            Math.abs(size),
+            price
+        ];
 
         //bids
         if (size > 0) {
             //append row
             this.bidUpdated = true;
-            if (this.bid.length === 0 || price < this.bid[this.bid.length - 1]["price"]) {
-                this.bid.push(new_row);
+            if (this.bid.length === 0 || price < this.bid[this.bid.length - 1][3]) {
+                this.bid.push(newRow);
             } else {
 
                 for (let i = 0; i < this.bid.length; i++) {
                     //update row
-                    if (this.bid[i].price === price) {
-                        this.bid[i].size = Math.abs(size);
-                        this.bid[i].total = Math.abs(this.bid[i].size * price);
+                    if (this.bid[i][3] === price) {
+                        this.bid[i][2] = Math.abs(size);
+                        this.bid[i][1] = Math.abs(this.bid[i][2] * price);
                         break;
                     }
                     //insert row
-                    if (price > this.bid[i].price) {
-                        this.bid.splice(i, 0, new_row);
+                    if (price > this.bid[i][3]) {
+                        this.bid.splice(i, 0, newRow);
                         break;
                     }
                 }
@@ -280,29 +310,29 @@ BookData.prototype.update = function (updateData) {
             //update sum
             let sum = 0;
             for (let i = 0; i < this.bid.length; i++) {
-                sum += this.bid[i].total;
-                this.bid[i].sum = sum;
+                sum += this.bid[i][1];
+                this.bid[i][0] = sum;
             }
         }
         //asks
         if (size < 0) {
             //append row
             this.askUpdated = true;
-            if (this.ask.length === 0 || price > this.ask[this.ask.length - 1]["price"]) {
-                this.ask.push(new_row);
+            if (this.ask.length === 0 || price > this.ask[this.ask.length - 1][3]) {
+                this.ask.push(newRow);
             } else {
 
 
                 for (let i = 0; i < this.ask.length; i++) {
                     //update row
-                    if (this.ask[i].price === price) {
-                        this.ask[i].size = Math.abs(size);
-                        this.ask[i].total = Math.abs(this.ask[i].size * price);
+                    if (this.ask[i][3] === price) {
+                        this.ask[i][2] = Math.abs(size);
+                        this.ask[i][1] = Math.abs(this.ask[i][2] * price);
                         break;
                     }
                     //insert row
-                    if (price < this.ask[i].price) {
-                        this.ask.splice(i, 0, new_row);
+                    if (price < this.ask[i][3]) {
+                        this.ask.splice(i, 0, newRow);
                         break;
                     }
                 }
@@ -310,8 +340,8 @@ BookData.prototype.update = function (updateData) {
             //update sum
             let sum = 0;
             for (let i = 0; i < this.ask.length; i++) {
-                sum += this.ask[i].total;
-                this.ask[i].sum = sum;
+                sum += this.ask[i][1];
+                this.ask[i][0] = sum;
             }
         }
     }
@@ -434,7 +464,7 @@ let ObserverHandler = {
     updateOneObserver : function (observer, dataObject) {
         if (dataObject === undefined)
             return;
-        const needInitialData = observer["needIntialData"];
+        const needInitialData = observer["needInitialData"];
         const clientRequest = observer["clientRequest"];
         observer["needInitialData"] = false;
         if (clientRequest instanceof OrderBookRequest) {
@@ -473,12 +503,14 @@ let ObserverHandler = {
      * @private
      */
     _dispatchDataEvent: function (source, eventData) {
-        const event = new CustomEvent("data", {
+        /*const event = new CustomEvent("data", {
             detail: {
                 data: eventData,
             }
-        });
-        source.dispatchEvent(event);
+        });*/
+        source.update(eventData);
+        //console.log(eventData);
+        //source.dispatchEvent(event);
     }
 };
 
@@ -488,22 +520,8 @@ let ObserverHandler = {
  * @constructor
  */
 function TickerData(snapshotData) {
-    let newRow = {
-        timestamp: +new Date(),
-        frr: snapshotData[0],
-        bid: snapshotData[1],
-        bidPeriod: snapshotData[2],
-        bidSize: snapshotData[3],
-        ask: snapshotData[4],
-        askPeriod: snapshotData[5],
-        askSize: snapshotData[6],
-        dailyChange: snapshotData[7],
-        dailyChangePercentage: snapshotData[8],
-        lastPrice: snapshotData[9],
-        volume: snapshotData[10],
-        high: snapshotData[11],
-        low: snapshotData[12]
-    };
+    let newRow = snapshotData;
+    newRow.push(+new Date());
     this.data = [newRow];
 }
 
@@ -511,22 +529,9 @@ TickerData.prototype.maxLength = 25;
 
 TickerData.prototype.update = function (updateData) {
     updateData = updateData[0];
-    let newRow = {
-        timestamp: +new Date(),
-        frr: updateData[0],
-        bid: updateData[1],
-        bidPeriod: updateData[2],
-        bidSize: updateData[3],
-        ask: updateData[4],
-        askPeriod: updateData[5],
-        askSize: updateData[6],
-        dailyChange: updateData[7],
-        dailyChangePercentage: updateData[8],
-        lastPrice: updateData[9],
-        volume: updateData[10],
-        high: updateData[11],
-        low: updateData[12]
-    };
+    let newRow = updateData;
+    newRow.push(+new Date());
+
     if (this.data.length >= this.maxLength)
         this.data.splice(-1, 1);
     this.data.splice(0, 0, newRow);
@@ -534,6 +539,22 @@ TickerData.prototype.update = function (updateData) {
 
 };
 
+/**
+ * the trade's data structure
+ * [
+ *   [
+ *     0: id,
+ *     1: timestamp,
+ *     2: amount,
+ *     3: price
+ *   ],
+ *   ...
+ * ]
+ *
+ *
+ * @param snapshotData
+ * @constructor
+ */
 function TradesData(snapshotData) {
     this.bothUpdated = false;
     this.both = [];
@@ -543,13 +564,9 @@ function TradesData(snapshotData) {
     this.bought = [];
     const length = (snapshotData.length < this.maxLength) ? snapshotData.length : this.maxLength;
     for (let i = 0; i < length && i < snapshotData.length; i++) {
+        const newRow = snapshotData[i];
         const amount = snapshotData[i][2];
-        let newRow = {
-            id: snapshotData[i][0],
-            timestamp: snapshotData[i][1],
-            amount: amount,
-            price: snapshotData[i][3]
-        };
+
         this.both.splice(0, 0, newRow);
         this.bothUpdated = true;
         if (amount < 0) {
@@ -576,12 +593,8 @@ TradesData.prototype.update = function (updateData) {
 
     updateData = updateData[1];
     const amount = updateData[2];
-    let newRow = {
-        id: updateData[0],
-        timestamp: updateData[1],
-        amount: amount,
-        price: updateData[3]
-    };
+    const newRow = updateData;
+
     if (amount < 0) {
         if (this.sold.length >= this.maxLength)
             this.sold.splice(-1, 1);
@@ -647,7 +660,7 @@ let DataHandler = {
      * @param {Number} chanId the channel's id
      */
     delete: function (chanId) {
-        this.dataObjects.remove(chanId);
+        this.dataObjects.delete(chanId);
     },
 
 };
@@ -659,6 +672,7 @@ let Connector = {
     /**
      * establish a connection with the server
      */
+
     connect: function () {
 
         this.ws = new WebSocket(this.url);
@@ -667,44 +681,8 @@ let Connector = {
 
         this.ws.onopen = function () {
 
-            let element = document.getElementById("ask");
-            /*element.addEventListener("data", function (event) {
-                console.log(event.detail.data);
-                const data = event.detail.data;
-                let col = [];
-                for (let i = 0; i < data.length; i++) {
-                    for (let key in data[i]) {
-                        if (col.indexOf(key) === -1) {
-                            col.push(key);
-                        }
-                    }
-                }
-                let table = document.createElement("table");
-                let tr = table.insertRow(-1);
+            customElements.define("order-book-view", OrderBookView);
 
-                for (let i = 0; i < col.length; i++) {
-                    let th = document.createElement("th");      // TABLE HEADER.
-                    th.innerHTML = col[i];
-                    tr.appendChild(th);
-                }
-
-                for (let i = 0; i < data.length; i++) {
-
-                    tr = table.insertRow(-1);
-
-                    for (let j = 0; j < col.length; j++) {
-                        let tabCell = tr.insertCell(-1);
-                        tabCell.innerHTML = data[i][col[j]];
-                    }
-                }
-                this.innerHTML = "";
-                this.appendChild(table);
-            });*/
-            element.addEventListener("data", function (event) {
-                console.log(event.detail.data)
-            });
-            //ObserverHandler.requestData(element, new OrderBookRequest("P0", 100, "ask", "BTCUSD", "realtime"));
-            ObserverHandler.requestData(element, new TickerRequest("BTCUSD",1,1))
 
         };
         this.ws.onerror = function (err) {
@@ -751,11 +729,12 @@ let MessageHandler = {
         } else if (receivedData.hasOwnProperty("event")) {
             switch (receivedData.event) {
                 case MessageHandler.eventTypes.error:
-                    console.log(receivedData);
+                    ErrorHandler.handle(receivedData.code);
 
                     break;
 
                 case MessageHandler.eventTypes.info:
+                    InfoHandler.handle(receivedData.code);
                     break;
 
                 case MessageHandler.eventTypes.subscribed:
@@ -772,6 +751,45 @@ let MessageHandler = {
                 MessageHandler.eventTypes.pong:
                     break;
             }
+        }
+    }
+};
+
+let ErrorHandler = {
+    errorCodes : {
+        10000: "Unknown event",
+        10001: "Unknown pair",
+        10011: "Unknown Book precision",
+        10012: "Unknown Book length",
+        10300: "Subscription failed (generic)",
+        10301: "Already subscribed",
+        10302: "Unknown channel",
+        10305: "Reached limit of open channels",
+        10400: "Unsubscription failed (generic)",
+        10401: "Not subscribed",
+
+    },
+    handle: function(errorCode) {
+        console.log(this.errorCodes[errorCode]);
+
+  }
+};
+
+let InfoHandler = {
+    infoCodes : {
+        20051: "Stop/Restart Websocket Server",
+        20060: "Entering in Maintenance mode",
+        20061: "Maintenance ended"
+    },
+
+    handle : function (infoCode) {
+        console.log(this.infoCodes[infoCode]);
+        switch (infoCode) {
+            case 20051:
+
+            case 20061:
+                this.resubscribeAllChannels();
+                break;
         }
     }
 };
