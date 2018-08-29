@@ -22,7 +22,9 @@ let subscriptionManager = {
 
     subscribedChannels: new Map(),
 
-    subscriptionQueue: [],
+    pendingQueue: [],
+
+    subscriptionQueue : [],
 
     resubscriptionChannels: new Set(),
 
@@ -33,11 +35,11 @@ let subscriptionManager = {
     internalSubscribe: function (subscriptionEvent) {
         const ID = subscriptionEvent["chanId"];
 
-        for (let i = this.subscriptionQueue.length - 1; i >= 0; i--) {
-            const request = this.subscriptionQueue[i]["action"];
-            const observer = this.subscriptionQueue[i]["observer"];
+        for (let i = this.pendingQueue.length - 1; i >= 0; i--) {
+            const request = this.pendingQueue[i]["action"];
+            const observer = this.pendingQueue[i]["observer"];
             if (this.responseMatchesRequest(subscriptionEvent, request)) {
-                this.subscriptionQueue.splice(i, 1);
+                this.pendingQueue.splice(i, 1);
                 this.subscribedChannels.set(ID, request);
                 ObserverHandler.requestData(observer["source"], observer["clientRequest"]);
             }
@@ -71,17 +73,20 @@ let subscriptionManager = {
 
         }
     },
-    requestSubscription: function (action, observer, isAlreadySubscribed) {
-        if (isAlreadySubscribed) {
-            this.subscriptionQueue.push({action, observer});
+    requestSubscription: function (action, observer) {
+        const isAlreadyPending = this.isRequestInQueue(action);
+        if (isAlreadyPending) {
+            this.pendingQueue.push({action, observer});
             return true;
         }
         const state = Connector.ws.readyState;
         if (state === WebSocket.OPEN) {
-            this.subscriptionQueue.push({action, observer});
+            this.pendingQueue.push({action, observer});
             Connector.ws.send(JSON.stringify(action));
             return true;
 
+        } else {
+            this.subscriptionQueue.push({action, observer});
         }
         return false;
 
@@ -167,8 +172,8 @@ let subscriptionManager = {
      * @returns {boolean} whether the request is queued
      */
     isRequestInQueue: function (subscriptionRequest) {
-        for (let i = this.subscriptionQueue.length - 1; i >= 0; i--) {
-            if (this._requestEqualsRequest(this.subscriptionQueue[i]["action"], subscriptionRequest))
+        for (let i = this.pendingQueue.length - 1; i >= 0; i--) {
+            if (this._requestEqualsRequest(this.pendingQueue[i]["action"], subscriptionRequest))
                 return true;
         }
         return false;
@@ -353,16 +358,16 @@ let ObserverHandler = {
     observer: new Map(),
     /**
      * register a node for specific data updates
-     * @param {Node} source the DOM node to which the data is sent
+     * @param {Observer} source the DOM node to which the data is sent
      * @param {ClientRequest} clientRequest the object to request specific data
      */
     requestData: function (source, clientRequest) {
         const apiRequest = this._convertToApiRequest(clientRequest);
-        const isAlreadyInQueue = subscriptionManager.isRequestInQueue(apiRequest);
+        //const isAlreadyInQueue = subscriptionManager.isRequestInQueue(apiRequest);
         const chanId = subscriptionManager.getIdFromRequest(apiRequest);
 
         if (chanId === undefined) {
-            subscriptionManager.requestSubscription(apiRequest, {source, clientRequest}, isAlreadyInQueue);
+            subscriptionManager.requestSubscription(apiRequest, {source, clientRequest});
         } else {
             const newObserver = {source, clientRequest, needInitialData: true};
             let obs = [];
@@ -498,7 +503,7 @@ let ObserverHandler = {
     ,
     /**
      * dispatch the data update event
-     * @param {Node} source the events destination node
+     * @param {Observer} source the events destination node
      * @param eventData the data to be sent
      * @private
      */
@@ -681,7 +686,11 @@ let Connector = {
 
         this.ws.onopen = function () {
 
-            customElements.define("order-book-view", OrderBookView);
+
+            for (const sub of subscriptionManager.subscriptionQueue) {
+                subscriptionManager.requestSubscription(sub["action"], sub["observer"])
+            }
+
 
 
         };

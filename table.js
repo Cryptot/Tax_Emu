@@ -1,11 +1,23 @@
 function Observer() {
+    this.request = null;
 }
 
 Observer.prototype.info = function() {
-    console.log("not implemented")
+    console.warn("not implemented")
+};
+
+Observer.prototype.update = function() {
+    console.warn("not implemented")
+};
+
+Observer.prototype.subscribeToData = function(clientRequest) {
+    ObserverHandler.requestData(this, clientRequest);
+
+
 };
 
 function Table(size, columnNames, parentNode, title) {
+    Observer.call(this);
     this.size = size;
     this.title = null;
     this.columnNames = columnNames;
@@ -97,13 +109,19 @@ class OrderBookView extends HTMLElement {
         const recordCount = Number(this.getAttribute("data-count"));
         const currencyPair = this.getAttribute("data-pair");
         const title = askOrBid.toUpperCase() + " - " + currencyPair;
-        const shadow = this.attachShadow({mode: "open"});
-        shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
-        const table = new Table(recordCount, ["a", "b", "c", "d"], shadow, title);
-        ObserverHandler.requestData(table, new OrderBookRequest("P0", recordCount, askOrBid, currencyPair, "notrealtime"))
-        table.info();
 
+        const shadow = this.attachShadow({mode: "open"});
+        // set stylesheet
+        shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
+        // create Table object and append to shadow DOM
+        const table = new Table(recordCount, ["a", "b", "c", "d"], shadow, title);
+        // subscribe to Data
+        table.subscribeToData(new OrderBookRequest("P0", recordCount, askOrBid, currencyPair, "notrealtime"));
 
 
     }
 }
+
+window.onload = function () {
+    customElements.define("order-book-view", OrderBookView);
+};
