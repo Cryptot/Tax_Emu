@@ -24,7 +24,7 @@ let subscriptionManager = {
 
     pendingQueue: [],
 
-    subscriptionQueue : [],
+    subscriptionQueue: [],
 
     resubscriptionChannels: new Set(),
 
@@ -179,15 +179,13 @@ let subscriptionManager = {
         return false;
     },
 
-    resubscribeAllChannels : function() {
+    resubscribeAllChannels: function () {
         for (const chanId of this.subscribedChannels.keys()) {
             this.resubscriptionChannels.add(chanId);
             this.requestUnsubscription(chanId);
         }
 
     },
-
-
 
 
 };
@@ -211,6 +209,9 @@ let subscriptionManager = {
 function BookData(snapshotData) {
     this.askUpdated = true;
     this.bidUpdated = true;
+
+    this.askNewPriceLevels = new Set();
+    this.bidNewPriceLevels = new Set();
 
     const splitter = snapshotData.length / 2;
     this.bid = [];
@@ -254,6 +255,8 @@ function BookData(snapshotData) {
  * @param updateData the API update data
  */
 BookData.prototype.update = function (updateData) {
+    this.askNewPriceLevels.clear();
+    this.bidNewPriceLevels.clear();
     updateData = updateData[0];
     this.askUpdated = false;
     this.bidUpdated = false;
@@ -278,7 +281,7 @@ BookData.prototype.update = function (updateData) {
                 break;
             }
         }
-        container.splice(removeIndex, 1)
+        container.splice(removeIndex, 1);
 
     } else if (count > 0) {
         let total = Math.abs(price * size);
@@ -296,6 +299,7 @@ BookData.prototype.update = function (updateData) {
             this.bidUpdated = true;
             if (this.bid.length === 0 || price < this.bid[this.bid.length - 1][3]) {
                 this.bid.push(newRow);
+                this.bidNewPriceLevels.add(price);
             } else {
 
                 for (let i = 0; i < this.bid.length; i++) {
@@ -308,6 +312,7 @@ BookData.prototype.update = function (updateData) {
                     //insert row
                     if (price > this.bid[i][3]) {
                         this.bid.splice(i, 0, newRow);
+                        this.bidNewPriceLevels.add(price);
                         break;
                     }
                 }
@@ -325,6 +330,7 @@ BookData.prototype.update = function (updateData) {
             this.askUpdated = true;
             if (this.ask.length === 0 || price > this.ask[this.ask.length - 1][3]) {
                 this.ask.push(newRow);
+                this.askNewPriceLevels.add(price);
             } else {
 
 
@@ -338,6 +344,7 @@ BookData.prototype.update = function (updateData) {
                     //insert row
                     if (price < this.ask[i][3]) {
                         this.ask.splice(i, 0, newRow);
+                        this.askNewPriceLevels.add(price);
                         break;
                     }
                 }
@@ -353,6 +360,11 @@ BookData.prototype.update = function (updateData) {
     return true;
 };
 
+BookData.getDataFields = function () {
+    return ["sum", "total", "size", "price"];
+};
+
+
 let ObserverHandler = {
 
     observer: new Map(),
@@ -363,7 +375,6 @@ let ObserverHandler = {
      */
     requestData: function (source, clientRequest) {
         const apiRequest = this._convertToApiRequest(clientRequest);
-        //const isAlreadyInQueue = subscriptionManager.isRequestInQueue(apiRequest);
         const chanId = subscriptionManager.getIdFromRequest(apiRequest);
 
         if (chanId === undefined) {
@@ -381,8 +392,6 @@ let ObserverHandler = {
 
             const dataObject = DataHandler.dataObjects.get(chanId);
             this.updateOneObserver(newObserver, dataObject);
-
-
 
 
         }
@@ -417,6 +426,13 @@ let ObserverHandler = {
                 channel: "trades",
                 symbol: "t" + clientRequest["currencyPair"]
             };
+
+        if (clientRequest instanceof CandlesRequest)
+            return {
+                event: "subscribe",
+                channel: "candles",
+                key: "trade:" + clientRequest["timeFrame"] + ":t" + clientRequest["currencyPair"]
+            }
     },
     updateOrderBookObserver: function (observer, dataObject) {
         const clientRequest = observer["clientRequest"];
@@ -426,12 +442,12 @@ let ObserverHandler = {
 
         if (type === "ask" && (dataObject.askUpdated)) {
             eventData = dataObject.ask.slice(0, clientRequest["recordCount"]);
-            this._dispatchDataEvent(source, eventData);
+            source.update(eventData, dataObject.askNewPriceLevels);
             return;
         }
         if (type === "bid" && dataObject.bidUpdated) {
             eventData = dataObject.bid.slice(0, clientRequest["recordCount"]);
-            this._dispatchDataEvent(source, eventData);
+            source.update(eventData, dataObject.bidNewPriceLevels);
         }
 
     },
@@ -441,7 +457,7 @@ let ObserverHandler = {
         const source = observer["source"];
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
         const eventData = dataObject.data.slice(0, recordCount);
-        this._dispatchDataEvent(source, eventData);
+        source.update(eventData);
     },
 
     updateTradesObserver: function (observer, dataObject, needInitialData) {
@@ -453,20 +469,31 @@ let ObserverHandler = {
 
         if (type === "sold" && (dataObject.soldUpdated || needInitialData)) {
             eventData = dataObject.sold.slice(0, recordCount);
-            this._dispatchDataEvent(source, eventData);
+            source.update(eventData);
             return;
         }
         if (type === "bought" && (dataObject.boughtUpdated || needInitialData)) {
             eventData = dataObject.bought.slice(0, recordCount);
-            this._dispatchDataEvent(source, eventData);
+            source.update(eventData);
             return;
         }
         if (type === "both" && (dataObject.bothUpdated || needInitialData)) {
             eventData = dataObject.both.slice(0, recordCount);
-            this._dispatchDataEvent(source, eventData);
+            source.update(eventData);
         }
     },
-    updateOneObserver : function (observer, dataObject) {
+
+    updateCandlesObserver : function(observer, dataObject, needInitialData) {
+        const clientRequest = observer["clientRequest"];
+        const source = observer["souce"];
+        let eventData;
+        const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
+
+        eventData = dataObject.candles.slice(0, recordCount);
+        source.update(eventData);
+
+    },
+    updateOneObserver: function (observer, dataObject) {
         if (dataObject === undefined)
             return;
         const needInitialData = observer["needInitialData"];
@@ -480,6 +507,9 @@ let ObserverHandler = {
         }
         if (clientRequest instanceof TradesRequest) {
             this.updateTradesObserver(observer, dataObject, needInitialData);
+        }
+        if (clientRequest instanceof CandlesRequest) {
+            this.updateCandlesObserver(observer, dataObject, needInitialData);
         }
     },
     /**
@@ -499,23 +529,6 @@ let ObserverHandler = {
     ,
     informObserver: function (chanId) {
         //
-    }
-    ,
-    /**
-     * dispatch the data update event
-     * @param {Observer} source the events destination node
-     * @param eventData the data to be sent
-     * @private
-     */
-    _dispatchDataEvent: function (source, eventData) {
-        /*const event = new CustomEvent("data", {
-            detail: {
-                data: eventData,
-            }
-        });*/
-        source.update(eventData);
-        //console.log(eventData);
-        //source.dispatchEvent(event);
     }
 };
 
@@ -622,6 +635,21 @@ TradesData.prototype.update = function (updateData) {
 };
 
 
+
+function CandlesData(snapshotData) {
+    this.candles = snapshotData.slice(0, this.maxLength);
+}
+CandlesData.prototype.update = function(updateData) {
+    this.candles.splice(-1, 1);
+    this.candles.splice(0, 0, updateData);
+};
+
+CandlesData.getDataFields = function () {
+    return ["timestamp", "open", "close", "high", "low", "volume"];
+};
+CandlesData.prototype.maxLength = 60;
+
+
 let DataHandler = {
     dataObjects: new Map(),
 
@@ -655,6 +683,9 @@ let DataHandler = {
                 break;
             case "trades":
                 this.dataObjects.set(chanId, new TradesData(snapshotData));
+                break;
+            case "candles":
+                this.dataObjects.set(chanId, new CandlesData(snapshotData));
                 break;
         }
         ObserverHandler.updateAllObservers(chanId);
@@ -690,7 +721,6 @@ let Connector = {
             for (const sub of subscriptionManager.subscriptionQueue) {
                 subscriptionManager.requestSubscription(sub["action"], sub["observer"])
             }
-
 
 
         };
@@ -765,7 +795,7 @@ let MessageHandler = {
 };
 
 let ErrorHandler = {
-    errorCodes : {
+    errorCodes: {
         10000: "Unknown event",
         10001: "Unknown pair",
         10011: "Unknown Book precision",
@@ -778,24 +808,28 @@ let ErrorHandler = {
         10401: "Not subscribed",
 
     },
-    handle: function(errorCode) {
+    handle: function (errorCode) {
         console.log(this.errorCodes[errorCode]);
 
-  }
+    }
 };
 
 let InfoHandler = {
-    infoCodes : {
+    infoCodes: {
         20051: "Stop/Restart Websocket Server",
         20060: "Entering in Maintenance mode",
         20061: "Maintenance ended"
     },
 
-    handle : function (infoCode) {
+    handle: function (infoCode) {
         console.log(this.infoCodes[infoCode]);
         switch (infoCode) {
             case 20051:
+                break;
 
+            case 20060:
+                // maybe clear all observers, at least send info message to all observerss
+                break;
             case 20061:
                 this.resubscribeAllChannels();
                 break;
@@ -854,6 +888,30 @@ function TradesRequest(currencyPair, recordCount, soldOrBoughtOrBoth, initialRec
     this.soldOrBoughtOrBoth = soldOrBoughtOrBoth;
     this.initialRecordCount = initialRecordCount;
 }
+
+/**
+ * Object to request candles data
+ * @param currencyPair
+ * @param timeFrame
+ * @param recordCount
+ * @param initialRecordCount
+ * @constructor
+ */
+
+function CandlesRequest(currencyPair, timeFrame, recordCount, initialRecordCount) {
+    this.currencyPair = currencyPair;
+    this.timeFrame = timeFrame;
+    this.recordCount = recordCount;
+    this.initialRecordCount = initialRecordCount;
+}
+/*
+{
+   event: "subscribe",
+   channel: "candles",
+   key: "trade:1m:tBTCUSD"
+}
+
+ */
 
 
 Connector.connect();
