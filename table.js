@@ -26,17 +26,25 @@ function DOMRepresentation(parentNode) {
     this.error.classList.add("overlayText");
     this.error.innerHTML = "Test 123";
     this.parentNode.appendChild(this.overlay);
-    this.overlay.style.display = "block";
+
+    //this.overlay.style.display = "block";
 }
 
 DOMRepresentation.prototype = Object.create(Observer.prototype);
+
+DOMRepresentation.prototype.showOverlay = function() {
+    this.overlay.style.display = "flex";
+};
+
+DOMRepresentation.prototype.hideOverlay = function() {
+    this.overlay.style.display = "none";
+};
 
 function Table(size, columnNames, parentNode, title) {
     DOMRepresentation.call(this, parentNode);
     this.size = size;
     this.title = null;
     this.columnNames = columnNames;
-    //this.parentNode = parentNode;
     this.table = document.createElement("div");
     this.table.classList.add("table");
 
@@ -53,11 +61,28 @@ function Table(size, columnNames, parentNode, title) {
     }
 
     this.parentNode.appendChild(this.table);
-
-
 }
 
 Table.prototype = Object.create(DOMRepresentation.prototype);
+
+
+Table.prototype.hideColumn = function(indexOrColumnName) {
+    if (typeof index === "string") {
+        index = this.columnOrder.indexOf(this.columnNames.indexOf(index));
+    }
+    for (const row of this.cells) {
+        row[index].style.display = "none";
+    }
+};
+
+Table.prototype.showColumn = function(indexOrColumnName) {
+    if (typeof index === "string") {
+        index = this.columnOrder.indexOf(this.columnNames.indexOf(index));
+    }
+    for (const row of this.cells) {
+        row[index].style.display = "table-cell";
+    }
+};
 
 Table.prototype.getCell = function (title, setDataTitle = true, defaultValue = "-") {
     const cell = document.createElement("div");
@@ -109,7 +134,7 @@ Table.prototype.fillRow = function (index, rowData, changeAnimation=false) {
 }
 ;
 Table.prototype.fillTable = function (data, metadata) {
-    console.log(data);
+    //console.log(data);
     for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
         const newPrice = data[i - 1][3];
         this.fillRow(i, data[i - 1], metadata.has(newPrice));

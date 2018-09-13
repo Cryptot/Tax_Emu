@@ -777,7 +777,7 @@ let MessageHandler = {
                     break;
 
                 case MessageHandler.eventTypes.subscribed:
-                    console.log(receivedData);
+                    //console.log(receivedData);
                     subscriptionManager.internalSubscribe(receivedData);
 
                     break;
