@@ -598,6 +598,10 @@ function TradesData(snapshotData) {
 
 }
 
+TradesData.getDataFields = function () {
+    return ["id", "timestamp", "amount", "price"];
+};
+
 TradesData.prototype.maxLength = 30;
 
 TradesData.prototype.update = function (updateData) {
