@@ -31,12 +31,19 @@ function DOMRepresentation(parentNode) {
 
 DOMRepresentation.prototype = Object.create(Observer.prototype);
 
+DOMRepresentation.prototype.showOverlay = function() {
+    this.overlay.style.display = "flex";
+};
+
+DOMRepresentation.prototype.hideOverlay = function() {
+    this.overlay.style.display = "none";
+};
+
 function Table(size, columnNames, parentNode, title) {
     DOMRepresentation.call(this, parentNode);
     this.size = size;
     this.title = null;
     this.columnNames = columnNames;
-    //this.parentNode = parentNode;
     this.table = document.createElement("div");
     this.table.classList.add("table");
 
@@ -53,11 +60,28 @@ function Table(size, columnNames, parentNode, title) {
     }
 
     this.parentNode.appendChild(this.table);
-
-
 }
 
 Table.prototype = Object.create(DOMRepresentation.prototype);
+
+
+Table.prototype.hideColumn = function(indexOrColumnName) {
+    if (typeof indexOrColumnName === "string") {
+        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(index));
+    }
+    for (const row of this.cells) {
+        row[indexOrColumnName].style.display = "none";
+    }
+};
+
+Table.prototype.showColumn = function(indexOrColumnName) {
+    if (typeof indexOrColumnName === "string") {
+        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(index));
+    }
+    for (const row of this.cells) {
+        row[indexOrColumnName].style.display = "table-cell";
+    }
+};
 
 Table.prototype.getCell = function (title, setDataTitle = true, defaultValue = "-") {
     const cell = document.createElement("div");
