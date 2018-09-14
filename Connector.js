@@ -554,8 +554,13 @@ TickerData.prototype.update = function (updateData) {
         this.data.splice(-1, 1);
     this.data.splice(0, 0, newRow);
 
-
 };
+
+TickerData.getDataFields = function () {
+    return ["bid", "bid_size", "ask", "ask_size", "daily_change", "dail_change_perc", "last_price", "volume", "high", "low", "timestamp"];
+};
+
+
 
 /**
  * the trade's data structure

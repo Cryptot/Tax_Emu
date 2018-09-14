@@ -13,9 +13,8 @@ Observer.prototype.update = function () {
 
 Observer.prototype.subscribeToData = function (clientRequest) {
     ObserverHandler.requestData(this, clientRequest);
-
-
 };
+
 function DOMRepresentation(parentNode) {
     Observer.call(this);
     this.parentNode = parentNode;
@@ -24,9 +23,9 @@ function DOMRepresentation(parentNode) {
     this.overlay.appendChild(this.error);
     this.overlay.classList.add("overlay");
     this.error.classList.add("overlayText");
-    this.error.innerHTML = "Test 123";
+    this.error.textContent = "Test 123";
     this.parentNode.appendChild(this.overlay);
-    //this.overlay.style.display = "block";
+    this.overlay.style.display = "none";
 }
 
 DOMRepresentation.prototype = Object.create(Observer.prototype);
@@ -47,7 +46,10 @@ function Table(size, columnNames, parentNode, title) {
     this.table = document.createElement("div");
     this.table.classList.add("table");
 
-    this.columnOrder = [0, 1, 2, 3];
+    this.columnOrder = [];
+    for (let i = 0; i < columnNames.length; i++) {
+        this.columnOrder.push(i);
+    }
 
     // first row should be header
     this.rows = [];
@@ -165,6 +167,16 @@ TradesTable.prototype.fillTable = function(data, metadata) {
     }
 };
 
+function TickerTable(size, columnNames, parentNode, title) {
+    Table.call(this, size, columnNames, parentNode, title);
+}
+TickerTable.prototype = Object.create(Table.prototype);
+
+TickerTable.prototype.fillTable = function(data, metadata) {
+    for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
+        this.fillRow(i, data[i - 1], i === 1);
+    }
+};
 
 
 class OrderBookView extends HTMLElement {
@@ -206,13 +218,28 @@ class TradesView extends HTMLElement {
     }
 }
 
+class TickerView extends HTMLElement {
+    constructor() {
+        super();
+        this.classList.add("wrapper");
+        const currencyPair = this.getAttribute("data-pair");
+        const recordCount = parseInt(this.getAttribute("data-count"));
+        //const initialRecordCount = this.getAttribute("data-initial-count");
+        const title = "TICKER - " + currencyPair;
+        this.shadow = this.attachShadow({mode: "open"});
+        this.shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
+
+        this.table = new TickerTable(recordCount, TickerData.getDataFields(), this.shadow, title);
+        this.table.subscribeToData(new TickerRequest(currencyPair, recordCount, recordCount));
 
 
 
 
-
+    }
+}
 
 window.onload = function () {
     customElements.define("order-book-view", OrderBookView);
     customElements.define("trades-view", TradesView);
+    customElements.define("ticker-view", TickerView);
 };
