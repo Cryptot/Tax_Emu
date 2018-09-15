@@ -69,10 +69,14 @@ let subscriptionManager = {
                 ObserverHandler.observer.delete(ID);
                 this.subscribedChannels.delete(ID);
             }
-
-
         }
     },
+    /**
+     * request a subscription by sending the action to the server
+     * @param {apiRequest} action
+     * @param {ObserverDescriptor} observer
+     * @returns {boolean}
+     */
     requestSubscription: function (action, observer) {
         const isAlreadyPending = this.isRequestInQueue(action);
         if (isAlreadyPending) {
@@ -97,7 +101,6 @@ let subscriptionManager = {
      * @param {Number} channelID the channel's id
      * @returns {boolean} whether the request has been sent to the server
      */
-
     requestUnsubscription: function (channelID) {
         const action = {
             "event": "unsubscribe",
@@ -184,10 +187,7 @@ let subscriptionManager = {
             this.resubscriptionChannels.add(chanId);
             this.requestUnsubscription(chanId);
         }
-
     },
-
-
 };
 
 
@@ -206,7 +206,7 @@ let subscriptionManager = {
  * @constructor
  */
 
-function BookData(snapshotData) {
+function OrderBookData(snapshotData) {
     this.askUpdated = true;
     this.bidUpdated = true;
 
@@ -218,7 +218,6 @@ function BookData(snapshotData) {
     this.ask = [];
     let sum = 0;
     for (let i = 0; i < splitter; i++) {
-
 
         let price = snapshotData[i][0];
         let size = snapshotData[i][2];
@@ -254,7 +253,7 @@ function BookData(snapshotData) {
  * update the order book
  * @param updateData the API update data
  */
-BookData.prototype.update = function (updateData) {
+OrderBookData.prototype.update = function (updateData) {
     this.askNewPriceLevels.clear();
     this.bidNewPriceLevels.clear();
     updateData = updateData[0];
@@ -360,12 +359,16 @@ BookData.prototype.update = function (updateData) {
     return true;
 };
 
-BookData.getDataFields = function () {
+OrderBookData.getDataFields = function () {
     return ["sum", "total", "size", "price"];
 };
 
 
 let ObserverHandler = {
+
+    /**
+     * Map<Number, ObserverDescriptor>
+     */
 
     observer: new Map(),
     /**
@@ -388,18 +391,27 @@ let ObserverHandler = {
             } else {
                 obs.push(newObserver);
             }
+            source.channelIdentifier = chanId;
             this.observer.set(chanId, obs);
 
             const dataObject = DataHandler.dataObjects.get(chanId);
             this.updateOneObserver(newObserver, dataObject);
 
-
         }
+    },
+    /**
+     *
+     * @param {Observer} source
+     * @param {Number} chanId
+     */
+    stopDataRequest: function (source, chanId) {
+        const obs = this.observer.get(chanId);
+        obs.splice(obs.indexOf(source), 1);
     },
     /**
      * convert client requests to api requests
      * @param {ClientRequest} clientRequest the client request
-     * @returns {*}
+     * @returns {apiRequest}
      * @private
      */
     _convertToApiRequest: function (clientRequest) {
@@ -434,71 +446,100 @@ let ObserverHandler = {
                 key: "trade:" + clientRequest["timeFrame"] + ":t" + clientRequest["currencyPair"]
             }
     },
-    updateOrderBookObserver: function (observer, dataObject) {
+    /**
+     * update the observer with order book data
+     * @param {ObserverDescriptor} observer
+     * @param {OrderBookData} bookDataObject
+     */
+    updateOrderBookObserver: function (observer, bookDataObject) {
         const clientRequest = observer["clientRequest"];
         const source = observer["source"];
         let eventData;
         const type = clientRequest["askOrBid"];
 
-        if (type === "ask" && (dataObject.askUpdated)) {
-            eventData = dataObject.ask.slice(0, clientRequest["recordCount"]);
-            source.update(eventData, dataObject.askNewPriceLevels);
+        if (type === "ask" && (bookDataObject.askUpdated)) {
+            eventData = bookDataObject.ask.slice(0, clientRequest["recordCount"]);
+            source.update(eventData, bookDataObject.askNewPriceLevels);
             return;
         }
-        if (type === "bid" && dataObject.bidUpdated) {
-            eventData = dataObject.bid.slice(0, clientRequest["recordCount"]);
-            source.update(eventData, dataObject.bidNewPriceLevels);
+        if (type === "bid" && bookDataObject.bidUpdated) {
+            eventData = bookDataObject.bid.slice(0, clientRequest["recordCount"]);
+            source.update(eventData, bookDataObject.bidNewPriceLevels);
         }
 
     },
-
-    updateTickerObserver: function (observer, dataObject, needInitialData) {
+    /**
+     * update the observer with ticker data
+     * @param {ObserverDescriptor} observer
+     * @param {TickerData} tickerDataObject
+     * @param {boolean} needInitialData
+     */
+    updateTickerObserver: function (observer, tickerDataObject, needInitialData) {
         const clientRequest = observer["clientRequest"];
         const source = observer["source"];
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
-        const eventData = dataObject.data.slice(0, recordCount);
+        const eventData = tickerDataObject.data.slice(0, recordCount);
         source.update(eventData);
     },
-
-    updateTradesObserver: function (observer, dataObject, needInitialData) {
+    /**
+     * update the observer with trades data
+     * @param {ObserverDescriptor} observer
+     * @param {TradesData} tradesDataObject
+     * @param {boolean} needInitialData
+     */
+    updateTradesObserver: function (observer, tradesDataObject, needInitialData) {
         const clientRequest = observer["clientRequest"];
         const source = observer["source"];
         let eventData;
         const type = clientRequest["soldOrBoughtOrBoth"];
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
 
-        if (type === "sold" && (dataObject.soldUpdated || needInitialData)) {
-            eventData = dataObject.sold.slice(0, recordCount);
+        if (type === "sold" && (tradesDataObject.soldUpdated || needInitialData)) {
+            eventData = tradesDataObject.sold.slice(0, recordCount);
             source.update(eventData);
             return;
         }
-        if (type === "bought" && (dataObject.boughtUpdated || needInitialData)) {
-            eventData = dataObject.bought.slice(0, recordCount);
+        if (type === "bought" && (tradesDataObject.boughtUpdated || needInitialData)) {
+            eventData = tradesDataObject.bought.slice(0, recordCount);
             source.update(eventData);
             return;
         }
-        if (type === "both" && (dataObject.bothUpdated || needInitialData)) {
-            eventData = dataObject.both.slice(0, recordCount);
+        if (type === "both" && (tradesDataObject.bothUpdated || needInitialData)) {
+            eventData = tradesDataObject.both.slice(0, recordCount);
             source.update(eventData);
         }
     },
-
-    updateCandlesObserver : function(observer, dataObject, needInitialData) {
+    /**
+     * update the observer with candle data
+     * @param {ObserverDescriptor} observer
+     * @param {CandlesData} CandlesDataObject
+     * @param {boolean} needInitialData
+     */
+    updateCandlesObserver : function(observer, CandlesDataObject, needInitialData) {
         const clientRequest = observer["clientRequest"];
-        const source = observer["souce"];
+        const source = observer["source"];
         let eventData;
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
 
-        eventData = dataObject.candles.slice(0, recordCount);
+        eventData = CandlesDataObject.candles.slice(0, recordCount);
         source.update(eventData);
 
     },
+
+    /**
+     * update the given observer with the data in dataObject
+     * @param {ObserverDescriptor} observer
+     * @param {DataObject} dataObject
+     */
     updateOneObserver: function (observer, dataObject) {
         if (dataObject === undefined)
             return;
-        const needInitialData = observer["needInitialData"];
+
+        const needInitialData = observer.hasOwnProperty("needInitialData") ? observer["needInitialData"] : false;
+
         const clientRequest = observer["clientRequest"];
         observer["needInitialData"] = false;
+
         if (clientRequest instanceof OrderBookRequest) {
             this.updateOrderBookObserver(observer, dataObject);
         }
@@ -513,7 +554,7 @@ let ObserverHandler = {
         }
     },
     /**
-     * send data updates through an event to all registered DOM nodes, which has been registered for this channel id
+     * update all observers, which subscribed to the channel specified by the id
      * @param {Number} chanId the channel's id
      */
     updateAllObservers: function (chanId) {
@@ -533,7 +574,7 @@ let ObserverHandler = {
 };
 
 /**
- * the order book's data structure
+ * the ticker data structure
  * @param snapshotData
  * @constructor
  */
@@ -560,10 +601,8 @@ TickerData.getDataFields = function () {
     return ["bid", "bid_size", "ask", "ask_size", "daily_change", "dail_change_perc", "last_price", "volume", "high", "low", "timestamp"];
 };
 
-
-
 /**
- * the trade's data structure
+ * the trades data structure
  * [
  *   [
  *     0: id,
@@ -600,7 +639,6 @@ function TradesData(snapshotData) {
             this.boughtUpdated = true;
         }
     }
-
 }
 
 TradesData.getDataFields = function () {
@@ -685,7 +723,7 @@ let DataHandler = {
         const channel = subscriptionManager.getChannelOfId(chanId);
         switch (channel) {
             case "book":
-                this.dataObjects.set(chanId, new BookData(snapshotData));
+                this.dataObjects.set(chanId, new OrderBookData(snapshotData));
                 break;
             case "ticker":
                 this.dataObjects.set(chanId, new TickerData(snapshotData));
@@ -726,11 +764,9 @@ let Connector = {
 
         this.ws.onopen = function () {
 
-
             for (const sub of subscriptionManager.subscriptionQueue) {
                 subscriptionManager.requestSubscription(sub["action"], sub["observer"])
             }
-
 
         };
         this.ws.onerror = function (err) {
@@ -741,8 +777,6 @@ let Connector = {
 };
 
 let MessageHandler = {
-
-    callbacks: [],
 
     eventTypes: Object.freeze({
         error: "error",
@@ -848,7 +882,56 @@ let InfoHandler = {
 
 /**
  * An object sent by the client to request data
- * @typedef {(OrderBookRequest|TickerRequest|TradesRequest)} ClientRequest
+ * @typedef {(OrderBookRequest|TickerRequest|TradesRequest|CandlesRequest)} ClientRequest
+ */
+
+/**
+ * An object describing an observer
+ * @typedef {Object} ObserverDescriptor
+ * @property {Observer} source the element which receives the data
+ * @property {ClientRequest} clientRequest the request which source has sent
+ * @property {boolean} [needInitialData] indicates whether source has not yet received any data
+ */
+
+/**
+ * An object containing api data
+ * @typedef {(OrderBookData|TickerData|CandlesData|TradesData)} DataObject
+ */
+
+/**
+ * @typedef {(apiTickerRequest|apiCandlesRequest|apiOrderBookRequest|apiTradesRequest)} apiRequest
+ */
+
+/**
+ * @typedef {Object} apiTickerRequest
+ * @property {String} event="subscribe" the event type
+ * @property {String} channel="ticker" the channel
+ * @property {String} symbol the currency symbol
+ */
+
+/**
+ * @typedef {Object} apiTradesRequest
+ * @property {String} event="subscribe" the event type
+ * @property {String} channel="ticker" the channel
+ * @property {String} symbol the currency symbol
+ */
+
+/**
+ * @typedef {Object} apiOrderBookRequest
+ * @property {String} event="subscribe" the event type
+ * @property {String} channel="book" the channel
+ * @property {String} len record count 25 or 100
+ * @property {String} freq update rate F0 (realtime) F1 (2s)
+ * @property {String} prec the price level precision
+ * @property {String} symbol the currency symbol
+ *
+ */
+
+/**
+ * @typedef {Object} apiCandlesRequest
+ * @property {String} event="subscribe" the event type
+ * @property {String} channel="book" the channel
+ * @property {String} key the candles data key
  */
 
 /**
@@ -867,7 +950,6 @@ function OrderBookRequest(precision, recordCount, askOrBid, currencyPair, update
     this.askOrBid = askOrBid;
     this.currencyPair = currencyPair;
     this.updateRate = updateRate;
-
 }
 
 /**
@@ -913,14 +995,6 @@ function CandlesRequest(currencyPair, timeFrame, recordCount, initialRecordCount
     this.recordCount = recordCount;
     this.initialRecordCount = initialRecordCount;
 }
-/*
-{
-   event: "subscribe",
-   channel: "candles",
-   key: "trade:1m:tBTCUSD"
-}
-
- */
 
 
 Connector.connect();

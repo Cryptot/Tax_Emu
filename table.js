@@ -1,10 +1,10 @@
 function Observer() {
-    this.request = null;
+    this.channelIdentifier = -1;
+    this.clientRequest = null;
 }
 
 Observer.prototype.info = function () {
     console.warn("not implemented")
-
 };
 
 Observer.prototype.update = function () {
@@ -12,7 +12,20 @@ Observer.prototype.update = function () {
 };
 
 Observer.prototype.subscribeToData = function (clientRequest) {
-    ObserverHandler.requestData(this, clientRequest);
+    if (this.channelIdentifier === -1) {
+        ObserverHandler.requestData(this, clientRequest);
+        this.clientRequest = clientRequest;
+    } else {
+        console.info("already subscribed to something")
+    }
+};
+
+Observer.prototype.unsubscribeFromData = function () {
+    if (this.channelIdentifier !== -1) {
+        ObserverHandler.stopDataRequest(this, this.channelIdentifier);
+    } else {
+        console.info("no subscription to delete")
+    }
 };
 
 function DOMRepresentation(parentNode) {
@@ -30,18 +43,18 @@ function DOMRepresentation(parentNode) {
 
 DOMRepresentation.prototype = Object.create(Observer.prototype);
 
-DOMRepresentation.prototype.showOverlay = function() {
+DOMRepresentation.prototype.showOverlay = function () {
     this.overlay.style.display = "flex";
 };
 
-DOMRepresentation.prototype.hideOverlay = function() {
+DOMRepresentation.prototype.hideOverlay = function () {
     this.overlay.style.display = "none";
 };
 
 function Table(size, columnNames, parentNode, title) {
     DOMRepresentation.call(this, parentNode);
     this.size = size;
-    this.title = null;
+    this.title = title;
     this.columnNames = columnNames;
     this.table = document.createElement("div");
     this.table.classList.add("table");
@@ -50,7 +63,6 @@ function Table(size, columnNames, parentNode, title) {
     for (let i = 0; i < columnNames.length; i++) {
         this.columnOrder.push(i);
     }
-
     // first row should be header
     this.rows = [];
     this.cells = [];
@@ -67,7 +79,7 @@ function Table(size, columnNames, parentNode, title) {
 Table.prototype = Object.create(DOMRepresentation.prototype);
 
 
-Table.prototype.hideColumn = function(indexOrColumnName) {
+Table.prototype.hideColumn = function (indexOrColumnName) {
     if (typeof indexOrColumnName === "string") {
         indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(index));
     }
@@ -76,7 +88,7 @@ Table.prototype.hideColumn = function(indexOrColumnName) {
     }
 };
 
-Table.prototype.showColumn = function(indexOrColumnName) {
+Table.prototype.showColumn = function (indexOrColumnName) {
     if (typeof indexOrColumnName === "string") {
         indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(index));
     }
@@ -120,9 +132,8 @@ Table.prototype.addTitle = function (title) {
     this.title = titleDOM;
     this.table.appendChild(titleDOM);
 
-
 };
-Table.prototype.fillRow = function (index, rowData, changeAnimation=false) {
+Table.prototype.fillRow = function (index, rowData, changeAnimation = false) {
     const row = this.cells[index];
     for (let i = 0; i < this.columnOrder.length; i++) {
         if (changeAnimation) {
@@ -132,8 +143,7 @@ Table.prototype.fillRow = function (index, rowData, changeAnimation=false) {
         }
         row[i].textContent = rowData[this.columnOrder[i]];
     }
-}
-;
+};
 Table.prototype.fillTable = function (data, metadata) {
     for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
         this.fillRow(i, data[i - 1]);
@@ -147,9 +157,10 @@ Table.prototype.update = function (data, metadata) {
 function OrderBookTable(size, columnNames, parentNode, title) {
     Table.call(this, size, columnNames, parentNode, title);
 }
+
 OrderBookTable.prototype = Object.create(Table.prototype);
 
-OrderBookTable.prototype.fillTable = function(data, metadata) {
+OrderBookTable.prototype.fillTable = function (data, metadata) {
     for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
         const newPrice = data[i - 1][3];
         this.fillRow(i, data[i - 1], metadata.has(newPrice));
@@ -159,9 +170,10 @@ OrderBookTable.prototype.fillTable = function(data, metadata) {
 function TradesTable(size, columnNames, parentNode, title) {
     Table.call(this, size, columnNames, parentNode, title);
 }
+
 TradesTable.prototype = Object.create(Table.prototype);
 
-TradesTable.prototype.fillTable = function(data, metadata) {
+TradesTable.prototype.fillTable = function (data, metadata) {
     for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
         this.fillRow(i, data[i - 1], i === 1);
     }
@@ -170,9 +182,10 @@ TradesTable.prototype.fillTable = function(data, metadata) {
 function TickerTable(size, columnNames, parentNode, title) {
     Table.call(this, size, columnNames, parentNode, title);
 }
+
 TickerTable.prototype = Object.create(Table.prototype);
 
-TickerTable.prototype.fillTable = function(data, metadata) {
+TickerTable.prototype.fillTable = function (data, metadata) {
     for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
         this.fillRow(i, data[i - 1], i === 1);
     }
@@ -180,29 +193,40 @@ TickerTable.prototype.fillTable = function(data, metadata) {
 
 
 class OrderBookView extends HTMLElement {
+    static get observedAttributes() {
+        return ["data-count", "data-pair", "data-askOrBid"];
+    }
+
     constructor() {
         super();
         this.classList.add("wrapper");
         const askOrBid = this.getAttribute("data-askOrBid");
         const recordCount = parseInt(this.getAttribute("data-count"));
         const currencyPair = this.getAttribute("data-pair");
-        const title = askOrBid.toUpperCase() + " - " + currencyPair;
+        const title = "ORDERBOOK - " + askOrBid.toUpperCase() + " - " + currencyPair;
 
         this.shadow = this.attachShadow({mode: "open"});
         // set stylesheet
         this.shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
         // create Table object and append to shadow DOM
-        const table = new OrderBookTable(recordCount, BookData.getDataFields(), this.shadow, title);
+        const table = new OrderBookTable(recordCount, OrderBookData.getDataFields(), this.shadow, title);
         // subscribe to Data
         table.subscribeToData(new OrderBookRequest("P0", recordCount, askOrBid, currencyPair, "realtime"));
+    }
 
-
+    disconnectedCallback() {
+        this.table.unsubscribeFromData();
     }
 }
 
 class TradesView extends HTMLElement {
+    static get observedAttributes() {
+        return ["data-count", "data-pair", "data-soldOrBoughtOrBoth"];
+    }
+
     constructor() {
         super();
+
         this.classList.add("wrapper");
         const currencyPair = this.getAttribute("data-pair");
         const recordCount = parseInt(this.getAttribute("data-count"));
@@ -216,9 +240,17 @@ class TradesView extends HTMLElement {
         this.table = new TradesTable(recordCount, TradesData.getDataFields(), this.shadow, title);
         this.table.subscribeToData(new TradesRequest(currencyPair, recordCount, soldOrBoughtOrBoth, recordCount));
     }
+
+    disconnectedCallback() {
+        this.table.unsubscribeFromData();
+    }
 }
 
 class TickerView extends HTMLElement {
+    static get observedAttributes() {
+        return ["data-count", "data-pair"];
+    }
+
     constructor() {
         super();
         this.classList.add("wrapper");
@@ -231,10 +263,22 @@ class TickerView extends HTMLElement {
 
         this.table = new TickerTable(recordCount, TickerData.getDataFields(), this.shadow, title);
         this.table.subscribeToData(new TickerRequest(currencyPair, recordCount, recordCount));
+    }
 
+    disconnectedCallback() {
+        this.table.unsubscribeFromData();
+    }
 
+    attributeChangedCallback(name, oldValue, newValue) {
+        switch (name) {
+            case "data-pair":
+                // unsubscribe and subscribe to new value
+                break;
 
-
+            case "data-count":
+                // maybe soft solution is possible
+                break;
+        }
     }
 }
 
