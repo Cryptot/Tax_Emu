@@ -371,18 +371,24 @@ let ObserverHandler = {
      */
 
     observer: new Map(),
+
+    observerChanIdMapping: new Map(),
+
     /**
      * register a node for specific data updates
      * @param {Observer} source the DOM node to which the data is sent
      * @param {ClientRequest} clientRequest the object to request specific data
      */
     requestData: function (source, clientRequest) {
+        this.stopDataRequest(source); // only one subscription per observer
+
         const apiRequest = this._convertToApiRequest(clientRequest);
         const chanId = subscriptionManager.getIdFromRequest(apiRequest);
 
         if (chanId === undefined) {
             subscriptionManager.requestSubscription(apiRequest, {source, clientRequest});
         } else {
+
             const newObserver = {source, clientRequest, needInitialData: true};
             let obs = [];
             if (this.observer.has(chanId)) {
@@ -391,7 +397,8 @@ let ObserverHandler = {
             } else {
                 obs.push(newObserver);
             }
-            source.channelIdentifier = chanId;
+
+            this.observerChanIdMapping.set(source, chanId);
             this.observer.set(chanId, obs);
 
             const dataObject = DataHandler.dataObjects.get(chanId);
@@ -402,11 +409,20 @@ let ObserverHandler = {
     /**
      *
      * @param {Observer} source
-     * @param {Number} chanId
      */
-    stopDataRequest: function (source, chanId) {
-        const obs = this.observer.get(chanId);
-        obs.splice(obs.indexOf(source), 1);
+    stopDataRequest: function (source) {
+        const chanId = this.observerChanIdMapping.get(source);
+        if (chanId !== undefined) {
+            const obs = this.observer.get(chanId);
+            for (let i = obs.length - 1; i => 0; i--) {
+                if (obs[i]["source"] === source) {
+                    obs.splice(i, 1);
+                    break;
+                }
+            }
+            this.observerChanIdMapping.delete(source);
+            //this.observer.set(chanId, obs);
+        }
     },
     /**
      * convert client requests to api requests
@@ -515,7 +531,7 @@ let ObserverHandler = {
      * @param {CandlesData} CandlesDataObject
      * @param {boolean} needInitialData
      */
-    updateCandlesObserver : function(observer, CandlesDataObject, needInitialData) {
+    updateCandlesObserver: function (observer, CandlesDataObject, needInitialData) {
         const clientRequest = observer["clientRequest"];
         const source = observer["source"];
         let eventData;
@@ -682,11 +698,11 @@ TradesData.prototype.update = function (updateData) {
 };
 
 
-
 function CandlesData(snapshotData) {
     this.candles = snapshotData.slice(0, this.maxLength);
 }
-CandlesData.prototype.update = function(updateData) {
+
+CandlesData.prototype.update = function (updateData) {
     this.candles.splice(-1, 1);
     this.candles.splice(0, 0, updateData);
 };
@@ -767,6 +783,7 @@ let Connector = {
             for (const sub of subscriptionManager.subscriptionQueue) {
                 subscriptionManager.requestSubscription(sub["action"], sub["observer"])
             }
+            subscriptionManager.subscriptionQueue = [];
 
         };
         this.ws.onerror = function (err) {

@@ -1,5 +1,4 @@
 function Observer() {
-    this.channelIdentifier = -1;
     this.clientRequest = null;
 }
 
@@ -12,20 +11,12 @@ Observer.prototype.update = function () {
 };
 
 Observer.prototype.subscribeToData = function (clientRequest) {
-    if (this.channelIdentifier === -1) {
         ObserverHandler.requestData(this, clientRequest);
         this.clientRequest = clientRequest;
-    } else {
-        console.info("already subscribed to something")
-    }
 };
 
 Observer.prototype.unsubscribeFromData = function () {
-    if (this.channelIdentifier !== -1) {
-        ObserverHandler.stopDataRequest(this, this.channelIdentifier);
-    } else {
-        console.info("no subscription to delete")
-    }
+        ObserverHandler.stopDataRequest(this);
 };
 
 function DOMRepresentation(parentNode) {
@@ -81,7 +72,7 @@ Table.prototype = Object.create(DOMRepresentation.prototype);
 
 Table.prototype.hideColumn = function (indexOrColumnName) {
     if (typeof indexOrColumnName === "string") {
-        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(index));
+        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
     }
     for (const row of this.cells) {
         row[indexOrColumnName].style.display = "none";
@@ -90,7 +81,7 @@ Table.prototype.hideColumn = function (indexOrColumnName) {
 
 Table.prototype.showColumn = function (indexOrColumnName) {
     if (typeof indexOrColumnName === "string") {
-        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(index));
+        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
     }
     for (const row of this.cells) {
         row[indexOrColumnName].style.display = "table-cell";
@@ -200,22 +191,30 @@ class OrderBookView extends HTMLElement {
     constructor() {
         super();
         this.classList.add("wrapper");
-        const askOrBid = this.getAttribute("data-askOrBid");
-        const recordCount = parseInt(this.getAttribute("data-count"));
-        const currencyPair = this.getAttribute("data-pair");
-        const title = "ORDERBOOK - " + askOrBid.toUpperCase() + " - " + currencyPair;
-
         this.shadow = this.attachShadow({mode: "open"});
-        // set stylesheet
         this.shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
-        // create Table object and append to shadow DOM
-        const table = new OrderBookTable(recordCount, OrderBookData.getDataFields(), this.shadow, title);
-        // subscribe to Data
-        table.subscribeToData(new OrderBookRequest("P0", recordCount, askOrBid, currencyPair, "realtime"));
     }
 
     disconnectedCallback() {
         this.table.unsubscribeFromData();
+        let child;
+        while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
+            this.shadowRoot.removeChild(child);
+        }
+    }
+
+    connectedCallback() {
+        const request = this.createRequestFromAttributes();
+        const title = "ORDERBOOK - " + request.askOrBid.toUpperCase() + " - " + request.currencyPair;
+        this.table = new OrderBookTable(request.recordCount, OrderBookData.getDataFields(), this.shadow, title);
+        this.table.subscribeToData(request);
+
+    }
+    createRequestFromAttributes() {
+        const askOrBid = this.getAttribute("data-askOrBid");
+        const recordCount = parseInt(this.getAttribute("data-count"));
+        const currencyPair = this.getAttribute("data-pair");
+        return new OrderBookRequest("P0", recordCount, askOrBid, currencyPair, "realtime")
     }
 }
 
@@ -226,60 +225,85 @@ class TradesView extends HTMLElement {
 
     constructor() {
         super();
-
         this.classList.add("wrapper");
-        const currencyPair = this.getAttribute("data-pair");
-        const recordCount = parseInt(this.getAttribute("data-count"));
-        const soldOrBoughtOrBoth = this.getAttribute("data-soldOrBoughtOrBoth");
-        //const initialRecordCount = this.getAttribute("data-initial-count");
-        const title = soldOrBoughtOrBoth.toUpperCase() + " - " + currencyPair;
-
-        this.shadow = this.attachShadow({mode: "open"});
-        this.shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
-
-        this.table = new TradesTable(recordCount, TradesData.getDataFields(), this.shadow, title);
-        this.table.subscribeToData(new TradesRequest(currencyPair, recordCount, soldOrBoughtOrBoth, recordCount));
+        const shadow = this.attachShadow({mode: "open"});
+        shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
     }
 
     disconnectedCallback() {
         this.table.unsubscribeFromData();
+        let child;
+        while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
+            this.shadowRoot.removeChild(child);
+        }
+    }
+
+    connectedCallback() {
+        const request = this.createRequestFromAttributes();
+        const title = request.soldOrBoughtOrBoth.toUpperCase() + " - " + request.currencyPair;
+        this.table = new TradesTable(request.recordCount, TradesData.getDataFields(), this.shadow, title);
+        this.table.subscribeToData(request);
+
+    }
+    createRequestFromAttributes() {
+        const currencyPair = this.getAttribute("data-pair");
+        const recordCount = parseInt(this.getAttribute("data-count"));
+        const soldOrBoughtOrBoth = this.getAttribute("data-soldOrBoughtOrBoth");
+        return new TradesRequest(currencyPair, recordCount, soldOrBoughtOrBoth, recordCount);
     }
 }
 
 class TickerView extends HTMLElement {
-    static get observedAttributes() {
+    /*static get observedAttributes() {
         return ["data-count", "data-pair"];
-    }
+    }*/
 
     constructor() {
         super();
         this.classList.add("wrapper");
-        const currencyPair = this.getAttribute("data-pair");
-        const recordCount = parseInt(this.getAttribute("data-count"));
-        //const initialRecordCount = this.getAttribute("data-initial-count");
-        const title = "TICKER - " + currencyPair;
-        this.shadow = this.attachShadow({mode: "open"});
-        this.shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
-
-        this.table = new TickerTable(recordCount, TickerData.getDataFields(), this.shadow, title);
-        this.table.subscribeToData(new TickerRequest(currencyPair, recordCount, recordCount));
+        const shadow = this.attachShadow({mode: "open"});
+        shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
     }
 
     disconnectedCallback() {
         this.table.unsubscribeFromData();
+        let child;
+        while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
+            this.shadowRoot.removeChild(child);
+        }
     }
 
-    attributeChangedCallback(name, oldValue, newValue) {
+    connectedCallback() {
+        const request = this.createRequestFromAttributes();
+        const title = "TICKER - " + request.currencyPair;
+        this.table = new TickerTable(request.recordCount, TickerData.getDataFields(), this.shadowRoot, title);
+        this.table.subscribeToData(request);
+
+    }
+
+    createRequestFromAttributes() {
+        const currencyPair = this.getAttribute("data-pair");
+        const recordCount = parseInt(this.getAttribute("data-count"));
+        return new TickerRequest(currencyPair, recordCount, recordCount);
+    }
+
+    /*attributeChangedCallback(name, oldValue, newValue) {
         switch (name) {
             case "data-pair":
                 // unsubscribe and subscribe to new value
+                console.log(name + " " + oldValue + " -> " + newValue);
+                // this.table.unsubscribeFromData();
+                // this.table.clientRequest.currencyPair = newValue;
+                // this.table.subscribeToData(this.table.clientRequest);
                 break;
 
             case "data-count":
                 // maybe soft solution is possible
+                console.log(name + " " + oldValue + " -> " + newValue);
                 break;
+
         }
-    }
+    }*/
 }
 
 window.onload = function () {
