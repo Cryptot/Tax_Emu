@@ -11,12 +11,12 @@ Observer.prototype.update = function () {
 };
 
 Observer.prototype.subscribeToData = function (clientRequest) {
-        ObserverHandler.requestData(this, clientRequest);
-        this.clientRequest = clientRequest;
+    ObserverHandler.requestData(this, clientRequest);
+    this.clientRequest = clientRequest;
 };
 
 Observer.prototype.unsubscribeFromData = function () {
-        ObserverHandler.stopDataRequest(this);
+    ObserverHandler.stopDataRequest(this);
 };
 
 function DOMRepresentation(parentNode) {
@@ -45,26 +45,30 @@ DOMRepresentation.prototype.hideOverlay = function () {
 function Table(size, columnNames, parentNode, title) {
     DOMRepresentation.call(this, parentNode);
     this.size = size;
-    this.title = title;
+    this.titleDOM = null;
     this.columnNames = columnNames;
-    this.table = document.createElement("div");
-    this.table.classList.add("table");
+    this.tableDOM = document.createElement("div");
+    this.tableDOM.classList.add("table");
 
+    this.columnModifier = [];
     this.columnOrder = [];
     for (let i = 0; i < columnNames.length; i++) {
         this.columnOrder.push(i);
+        this.columnModifier.push(null);
     }
     // first row should be header
-    this.rows = [];
-    this.cells = [];
+    this.rowsDOM = [];
+    this.cellsDOM = [];
     this.addTitle(title);
 
     this.addRow(true);
-    for (let i = 0; i < size; i++) {
-        this.addRow();
-    }
 
-    this.parentNode.appendChild(this.table);
+    this.setRowCount(size);
+    //for (let i = 0; i < size; i++) {
+    //    this.addRow();
+    //}
+
+    this.parentNode.appendChild(this.tableDOM);
 }
 
 Table.prototype = Object.create(DOMRepresentation.prototype);
@@ -74,7 +78,7 @@ Table.prototype.hideColumn = function (indexOrColumnName) {
     if (typeof indexOrColumnName === "string") {
         indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
     }
-    for (const row of this.cells) {
+    for (const row of this.cellsDOM) {
         row[indexOrColumnName].style.display = "none";
     }
 };
@@ -83,22 +87,52 @@ Table.prototype.showColumn = function (indexOrColumnName) {
     if (typeof indexOrColumnName === "string") {
         indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
     }
-    for (const row of this.cells) {
+    for (const row of this.cellsDOM) {
         row[indexOrColumnName].style.display = "table-cell";
     }
 };
 
+Table.prototype.setRowCount = function (count) {
+    const currentCount = this.rowsDOM.length - 1;
+    if (count < currentCount) {
+        for (let i = count + 1; i < currentCount + 1; i++) {
+            this.tableDOM.removeChild(this.rowsDOM[i]);
+        }
+        this.rowsDOM.splice(count + 1, currentCount - count);
+        this.cellsDOM.splice(count + 1, currentCount - count);
+    }
+
+    if (count > currentCount) {
+        for (let i = 0; i < count - currentCount; i++) {
+            this.addRow();
+        }
+    }
+};
+
+Table.prototype.setAllCellsToPlaceholder = function (includeColumnTitles = false, includeTitle = false) {
+    if (includeTitle) {
+        this.titleDOM.textContent = "-"
+    }
+    for (const row of includeColumnTitles ? this.cellsDOM : this.cellsDOM.slice(1)) {
+        for (const cell of row) {
+            cell.textContent = "-";
+        }
+    }
+
+};
+
 Table.prototype.getCell = function (title, setDataTitle = true, defaultValue = "-") {
     const cell = document.createElement("div");
-    cell.innerHTML = defaultValue;
+    cell.textContent = defaultValue;
     cell.classList.add("cell");
     if (setDataTitle) {
         cell.setAttribute("data-title", title);
     } else {
-        cell.innerHTML = title;
+        cell.textContent = title;
     }
     return cell;
 };
+
 Table.prototype.addRow = function (isHeader = false) {
     const rowDOM = document.createElement("div");
     rowDOM.classList.add("row");
@@ -112,27 +146,40 @@ Table.prototype.addRow = function (isHeader = false) {
         internalRow.push(newCell);
         rowDOM.appendChild(newCell);
     }
-    this.cells.push(internalRow);
-    this.rows.push(rowDOM);
-    this.table.appendChild(rowDOM);
+    this.cellsDOM.push(internalRow);
+    this.rowsDOM.push(rowDOM);
+    this.tableDOM.appendChild(rowDOM);
 };
+
 Table.prototype.addTitle = function (title) {
-    const titleDOM = document.createElement("div");
-    titleDOM.classList.add("title");
-    titleDOM.innerHTML = title;
-    this.title = titleDOM;
-    this.table.appendChild(titleDOM);
+    if (!this.hasOwnProperty("title") || this.titleDOM === null) {
+        const titleDOM = document.createElement("div");
+        titleDOM.classList.add("title");
+        titleDOM.textContent = title;
+        this.titleDOM = titleDOM;
+        this.tableDOM.appendChild(titleDOM);
+    } else {
+        this.titleDOM.textContent = title;
+    }
 
 };
+
 Table.prototype.fillRow = function (index, rowData, changeAnimation = false) {
-    const row = this.cells[index];
+    const row = this.cellsDOM[index];
     for (let i = 0; i < this.columnOrder.length; i++) {
         if (changeAnimation) {
             //row[i].classList.remove("change");
             //void row[i].offsetWidth;
             //row[i].classList.add("change");
         }
-        row[i].textContent = rowData[this.columnOrder[i]];
+        const dataIndex = this.columnOrder[i];
+        const func = this.columnModifier[dataIndex];
+
+        let newContent = rowData[dataIndex];
+        if (func instanceof Function) {
+            newContent = func(newContent);
+        }
+        row[i].textContent = newContent;
     }
 };
 Table.prototype.fillTable = function (data, metadata) {
@@ -208,8 +255,11 @@ class OrderBookView extends HTMLElement {
         const title = "ORDERBOOK - " + request.askOrBid.toUpperCase() + " - " + request.currencyPair;
         this.table = new OrderBookTable(request.recordCount, OrderBookData.getDataFields(), this.shadow, title);
         this.table.subscribeToData(request);
+        const round3 = (x) => round(x, 3);
+        this.table.columnModifier = [round3, round3, round3, null];
 
     }
+
     createRequestFromAttributes() {
         const askOrBid = this.getAttribute("data-askOrBid");
         const recordCount = parseInt(this.getAttribute("data-count"));
@@ -245,6 +295,7 @@ class TradesView extends HTMLElement {
         this.table.subscribeToData(request);
 
     }
+
     createRequestFromAttributes() {
         const currencyPair = this.getAttribute("data-pair");
         const recordCount = parseInt(this.getAttribute("data-count"));
