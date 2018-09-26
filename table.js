@@ -23,11 +23,11 @@ function DOMRepresentation(parentNode) {
     Observer.call(this);
     this.parentNode = parentNode;
     this.overlay = document.createElement("div");
-    this.error = document.createElement("div");
-    this.overlay.appendChild(this.error);
+    this.title = document.createElement("div");
+    this.overlay.appendChild(this.title);
     this.overlay.classList.add("overlay");
-    this.error.classList.add("overlayText");
-    this.error.textContent = "Test 123";
+    this.title.classList.add("overlayText");
+    this.title.textContent = "Test 123";
     this.parentNode.appendChild(this.overlay);
     this.overlay.style.display = "none";
 }
@@ -40,6 +40,11 @@ DOMRepresentation.prototype.showOverlay = function () {
 
 DOMRepresentation.prototype.hideOverlay = function () {
     this.overlay.style.display = "none";
+};
+
+DOMRepresentation.prototype.info = function(message) {
+  this.showOverlay();
+  this.title.textContent = message["title"];
 };
 
 function Table(size, columnNames, parentNode, title) {
@@ -189,6 +194,7 @@ Table.prototype.fillTable = function (data, metadata) {
 };
 
 Table.prototype.update = function (data, metadata) {
+    this.hideOverlay();
     this.fillTable(data, metadata);
 };
 

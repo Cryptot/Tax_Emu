@@ -366,9 +366,10 @@ let ObserverHandler = {
         const chanId = subscriptionManager.getIdFromRequest(apiRequest);
 
         if (chanId === undefined) {
+            // requested data not in local structure
             subscriptionManager.requestSubscription(apiRequest, {source, clientRequest});
         } else {
-
+            // requested data in local structure
             const newObserver = {source, clientRequest, needInitialData: true};
             let obs = [];
             if (this.observer.has(chanId)) {
@@ -382,6 +383,8 @@ let ObserverHandler = {
             this.observer.set(chanId, obs);
 
             const dataObject = DataHandler.dataObjects.get(chanId);
+            // data is available
+            this.informObserver({"title": "data is available"});
             this.updateOneObserver(newObserver, dataObject);
 
         }
@@ -564,8 +567,18 @@ let ObserverHandler = {
         }
     }
     ,
-    informObserver: function (chanId) {
-        //
+    informObserver: function (message, chanId = null) {
+        if (chanId instanceof Number) {
+            for (const obs of this.observer.get(chanId)) {
+                obs["source"].info(message);
+            }
+        } else {
+            for (const value of this.observer.values()) {
+                for (const obs of value) {
+                    obs["source"].info(message);
+                }
+            }
+        }
     }
 };
 
@@ -748,17 +761,21 @@ let DataHandler = {
 let Connector = {
     url: "wss://api.bitfinex.com/ws/2",
 
+    ws: null,
+
     /**
      * establish a connection with the server
      */
 
     connect: function () {
+        this.ws = null;
 
         this.ws = new WebSocket(this.url);
 
         this.ws.onmessage = MessageHandler.handle;
 
         this.ws.onopen = function () {
+            TimerAndActions.stopTimer("reconnect");
 
             for (const sub of subscriptionManager.subscriptionQueue) {
                 subscriptionManager.requestSubscription(sub["action"], sub["observer"])
@@ -769,7 +786,19 @@ let Connector = {
         this.ws.onerror = function (err) {
             console.log(err)
         };
+
+        this.onclose = function (evt) {
+            if (evt.code !== 1000) {
+                TimerAndActions.startTimer("reconnect");
+            } else {
+                console.info("connection closed normally");
+            }
+        }
     },
+
+    platformStatus: null,
+
+    supportedVersion: 2,
 
 };
 
@@ -813,7 +842,12 @@ let MessageHandler = {
                     break;
 
                 case MessageHandler.eventTypes.info:
-                    InfoHandler.handle(receivedData.code);
+                    if (receivedData.hasOwnProperty("code")) {
+                        InfoHandler.handle(receivedData.code);
+                    } else {
+                        //
+                        InfoHandler.handleConnectionMessage(receivedData);
+                    }
                     break;
 
                 case MessageHandler.eventTypes.subscribed:
@@ -865,17 +899,106 @@ let InfoHandler = {
         console.log(this.infoCodes[infoCode]);
         switch (infoCode) {
             case 20051:
+                ObserverHandler.informObserver({
+                    "title": this.infoCodes[infoCode],
+                    "msg": "server is restarting / stopping"
+                });
                 break;
 
             case 20060:
-                // maybe clear all observers, at least send info message to all observerss
+                ObserverHandler.informObserver({
+                    "title": this.infoCodes[infoCode],
+                    "msg": "server entered maintenance mode"
+                });
+
                 break;
             case 20061:
                 this.resubscribeAllChannels();
+                ObserverHandler.informObserver({"title": this.infoCodes[infoCode], "msg": "server is operative again"});
                 break;
+        }
+    },
+
+    handleConnectionMessage(message) {
+        const status = message["platform"]["status"];
+        const version = message["version"];
+
+        if (version !== Connector.supportedVersion) {
+            console.error("unsupported api version: " + version + ", supported version: " + Connector.supportedVersion);
+        }
+
+        if (status === 1) {
+            Connector.platformStatus = 1;
+            ObserverHandler.informObserver({"title": "Successfully Connected", "msg": "server is operative"})
+        } else if (status === 0) {
+            Connector.platformStatus = 0;
+            ObserverHandler.informObserver({"title": "Successfully Connected", "msg": "server is in maintenance mode"})
         }
     }
 };
+
+let TimerAndActions = {
+    _getAllAvailableSymbols: function () {
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", "https://api.bitfinex.com/v1/symbols", true);
+        xhr.onload = function (e) {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    console.log(xhr.response);
+                }
+            }
+        };
+        xhr.onerror(console.log.error(xhr.statusText));
+        xhr.send(null);
+    },
+
+    executeAction : function(actionName) {
+        const action = this.timerAndActionConfig[actionName]["action"];
+        action();
+    },
+
+    startTimer: function (timerName, firstExecutionIsInstant=true) {
+        const timer = this.timerAndActionConfig[timerName];
+        const timeout = timer["timeout"];
+        const action = timer["action"];
+        const isRunning = timer["isRunning"];
+
+        if (!isRunning) {
+            if (firstExecutionIsInstant) {
+                action();
+            }
+            timer["isRunning"] = true;
+            setTimeout(action, timeout);
+        }
+    },
+
+    stopTimer: function (timerName) {
+        const timer = this.timerAndActionConfig[timerName];
+        const action = timer["action"];
+        const isRunning = timer["isRunning"];
+
+        if (isRunning) {
+            clearTimeout(action);
+            timer["isRunning"] = false;
+        }
+    },
+
+    timerAndActionConfig: {
+        getAllSymbols: {
+            timeout: 1000 * 60 * 15,
+            action: this._getAllAvailableSymbols,
+            isRunning: false,
+        },
+
+        reconnect: {
+            timeout: 1000*60,
+            action: Connector.connect,
+            isRunning: false,
+        }
+    },
+};
+
+let Constants = {};
 
 /**
  * An object sent by the client to request data
