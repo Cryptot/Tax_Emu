@@ -30,6 +30,11 @@ function DOMRepresentation(parentNode) {
     this.title.textContent = "Test 123";
     this.parentNode.appendChild(this.overlay);
     this.overlay.style.display = "none";
+
+
+    this.notificationBox = document.createElement("div");
+    this.notificationBox.classList.add("notification-box");
+    this.parentNode.append(this.notificationBox);
 }
 
 DOMRepresentation.prototype = Object.create(Observer.prototype);
@@ -42,10 +47,50 @@ DOMRepresentation.prototype.hideOverlay = function () {
     this.overlay.style.display = "none";
 };
 
-DOMRepresentation.prototype.info = function(message) {
-  this.showOverlay();
-  this.title.textContent = message["title"];
+DOMRepresentation.prototype.info = function (message) {
+    this.showOverlay();
+    this.title.textContent = message["title"];
 };
+
+DOMRepresentation.prototype.addNewNotification = function (level, title, message) {
+    const notification = document.createElement("div");
+    notification.classList.add("notification");
+    switch (level) {
+        case "success":
+            notification.classList.add("success");
+            break;
+        case "info":
+            notification.classList.add("info");
+            break;
+        case "warn":
+            notification.classList.add("warn");
+            break;
+        case "error":
+            notification.classList.add("error");
+            break;
+    }
+    const closeButton = document.createElement("span");
+    closeButton.classList.add("close-button");
+    closeButton.onclick = function () {
+        notification.style.display = "none";
+        notification.remove();
+    };
+
+    closeButton.innerHTML = "&times";
+    notification.appendChild(closeButton);
+
+    const notificationTitle = document.createElement("p");
+    notificationTitle.textContent = title;
+    notification.appendChild(notificationTitle);
+
+    const notificationBody = document.createElement("p");
+    notificationBody.textContent = message;
+    notification.appendChild(notificationBody);
+
+    this.notificationBox.appendChild(notification);
+    return notification;
+};
+
 
 function Table(size, columnNames, parentNode, title) {
     DOMRepresentation.call(this, parentNode);

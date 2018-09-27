@@ -761,6 +761,9 @@ let DataHandler = {
 let Connector = {
     url: "wss://api.bitfinex.com/ws/2",
 
+    initalize: function() {
+    },
+
     ws: null,
 
     /**
@@ -782,9 +785,10 @@ let Connector = {
             }
             subscriptionManager.subscriptionQueue = [];
 
+            subscriptionManager.resubscribeAllChannels();
+
         };
         this.ws.onerror = function (err) {
-            console.log(err)
         };
 
         this.onclose = function (evt) {
