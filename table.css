@@ -1,7 +1,6 @@
 body {
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 14px;
-    line-height: 20px;
     font-weight: 400;
     color: #3b3b3b;
     background: #0c0180;
@@ -11,7 +10,7 @@ body {
     display: table;
 }
 
-.title {
+.table-caption {
     display: table-caption;
     background: #f6f6f6;
     text-align: center;
@@ -106,19 +105,20 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    pointer-events: none;
 }
 
 .notification {
     position: relative;
     width: 100%;
     box-sizing: border-box;
-    float: bottom;
-    padding: 20px;
+    padding-left: 20px;
+    padding-bottom: 8px;
     background-color: white;
     color: black;
     opacity: 1;
     transition: opacity 0.6s;
-    margin-bottom: 5px;
+    pointer-events: all;
 }
 
 .notification.success {
@@ -141,6 +141,17 @@ body {
     border-left: 6px solid #f44336;
 }
 
+.notification-title {
+    padding: 8px 0 0;
+    margin: 0;
+}
+
+.notification-text {
+    padding: 4px 0 0;
+    margin: 0;
+}
+
+
 .close-button {
     font-size: 18px;
     position: absolute;
@@ -149,7 +160,6 @@ body {
     user-select: none;
     padding: 8px 16px;
     cursor: pointer;
-
 }
 
 .close-button:hover {

@@ -48,47 +48,18 @@ DOMRepresentation.prototype.hideOverlay = function () {
 };
 
 DOMRepresentation.prototype.info = function (message) {
-    this.showOverlay();
-    this.title.textContent = message["title"];
+    //this.showOverlay();
+    this.addNewNotification(message["level"], message["title"], message["msg"]);
 };
 
-DOMRepresentation.prototype.addNewNotification = function (level, title, message) {
-    const notification = document.createElement("div");
-    notification.classList.add("notification");
-    switch (level) {
-        case "success":
-            notification.classList.add("success");
-            break;
-        case "info":
-            notification.classList.add("info");
-            break;
-        case "warn":
-            notification.classList.add("warn");
-            break;
-        case "error":
-            notification.classList.add("error");
-            break;
-    }
-    const closeButton = document.createElement("span");
-    closeButton.classList.add("close-button");
-    closeButton.onclick = function () {
-        notification.style.display = "none";
-        notification.remove();
-    };
-
-    closeButton.innerHTML = "&times";
-    notification.appendChild(closeButton);
-
-    const notificationTitle = document.createElement("p");
-    notificationTitle.textContent = title;
-    notification.appendChild(notificationTitle);
-
-    const notificationBody = document.createElement("p");
-    notificationBody.textContent = message;
-    notification.appendChild(notificationBody);
-
+DOMRepresentation.prototype.addNewNotification = function (level, title, message="") {
+    const notification = document.createElement("notification-msg");
+    notification.setAttribute("data-level", level);
+    notification.setAttribute("data-title", title);
+    notification.setAttribute("data-message", message);
     this.notificationBox.appendChild(notification);
-    return notification;
+    //return notification;
+
 };
 
 
@@ -114,9 +85,6 @@ function Table(size, columnNames, parentNode, title) {
     this.addRow(true);
 
     this.setRowCount(size);
-    //for (let i = 0; i < size; i++) {
-    //    this.addRow();
-    //}
 
     this.parentNode.appendChild(this.tableDOM);
 }
@@ -204,7 +172,7 @@ Table.prototype.addRow = function (isHeader = false) {
 Table.prototype.addTitle = function (title) {
     if (!this.hasOwnProperty("title") || this.titleDOM === null) {
         const titleDOM = document.createElement("div");
-        titleDOM.classList.add("title");
+        titleDOM.classList.add("table-caption");
         titleDOM.textContent = title;
         this.titleDOM = titleDOM;
         this.tableDOM.appendChild(titleDOM);
@@ -239,7 +207,7 @@ Table.prototype.fillTable = function (data, metadata) {
 };
 
 Table.prototype.update = function (data, metadata) {
-    this.hideOverlay();
+    //this.hideOverlay();
     this.fillTable(data, metadata);
 };
 
@@ -362,12 +330,12 @@ class TickerView extends HTMLElement {
 
     constructor() {
         super();
-        this.classList.add("wrapper");
         const shadow = this.attachShadow({mode: "open"});
         shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
     }
 
     disconnectedCallback() {
+        this.classList.remove("wrapper");
         this.table.unsubscribeFromData();
         let child;
         while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
@@ -376,6 +344,7 @@ class TickerView extends HTMLElement {
     }
 
     connectedCallback() {
+        this.classList.add("wrapper");
         const request = this.createRequestFromAttributes();
         const title = "TICKER - " + request.currencyPair;
         this.table = new TickerTable(request.recordCount, TickerData.getDataFields(), this.shadowRoot, title);
@@ -408,8 +377,135 @@ class TickerView extends HTMLElement {
     }*/
 }
 
+class NotificationMessage extends HTMLElement {
+    constructor() {
+        super();
+        const shadow = this.attachShadow({mode: "open"});
+
+    }
+
+    connectedCallback() {
+        const style = document.createElement("style");
+        style.innerText =
+    `.notification {
+            position: relative;
+            width: 100%;
+            box-sizing: border-box;
+            padding-left: 20px;
+            padding-bottom: 8px;
+            background-color: white;
+            color: black;
+            opacity: 1;
+            transition: opacity 0.6s;
+            pointer-events: all;
+        }
+
+    .notification.success {
+            background-color: #a0ffa0;
+            border-left: 6px solid #4CAF50;
+        }
+
+    .notification.info {
+            background-color: #a3c2fe;
+            border-left: 6px solid #2196F3;
+        }
+
+    .notification.warn {
+            background-color: #ffffcc;
+            border-left: 6px solid #ffeb3b;
+        }
+
+    .notification.error {
+            background-color: #ffa0a0;
+            border-left: 6px solid #f44336;
+        }
+
+    .notification-title {
+            padding: 8px 0 0;
+            margin: 0;
+        }
+
+    .notification-text {
+            padding: 4px 0 0;
+            margin: 0;
+        }
+
+    .close-button {
+            font-size: 18px;
+            position: absolute;
+            top: 0;
+            right: 0;
+            user-select: none;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+
+    .close-button:hover {
+            color: #000;
+            background-color: #ccc;
+        }`;
+
+        this.shadowRoot.appendChild(style);
+
+
+        const notification = this;
+        notification.classList.add("notification");
+        notification.classList.add(this.getLevel());
+
+        this.closeButton = document.createElement("span");
+        this.closeButton.classList.add("close-button");
+        this.closeButton.onclick = function () {
+            notification.style.display = "none";
+            notification.remove();
+        };
+        this.closeButton.innerHTML = "&times";
+        this.shadowRoot.appendChild(this.closeButton);
+
+        this.notificationTitle = document.createElement("p");
+        this.notificationTitle.classList.add("notification-title");
+        this.notificationTitle.textContent = this.getTitle();
+        this.shadowRoot.appendChild(this.notificationTitle);
+
+        this.notificationBody = document.createElement("p");
+        this.notificationBody.classList.add("notification-text");
+        this.notificationBody.textContent = this.getMessage();
+        this.shadowRoot.appendChild(this.notificationBody);
+
+    }
+
+    getLevel() {
+        let level = this.getAttribute("data-level");
+
+        if (!this.hasAttribute("data-level") || !level in ["success", "info", "warn", "error"]) {
+            level = "error";
+        }
+        return level;
+    }
+
+    getTitle() {
+        let title = this.getAttribute("data-title");
+        if (!this.hasAttribute("data-title")) {
+            title = "Unknown";
+        }
+        return title;
+    }
+
+    getMessage() {
+        let message = this.getAttribute("data-message");
+        if (!this.hasAttribute("data-title")) {
+            message = "Unknown Error";
+        }
+        return message;
+    }
+
+
+}
+
 window.onload = function () {
+    customElements.define("notification-msg", NotificationMessage);
     customElements.define("order-book-view", OrderBookView);
     customElements.define("trades-view", TradesView);
     customElements.define("ticker-view", TickerView);
+
 };
+

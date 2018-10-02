@@ -384,7 +384,7 @@ let ObserverHandler = {
 
             const dataObject = DataHandler.dataObjects.get(chanId);
             // data is available
-            this.informObserver({"title": "data is available"});
+            this.informObserver({"level": "success", "title": "data is available"});
             this.updateOneObserver(newObserver, dataObject);
 
         }
@@ -761,7 +761,7 @@ let DataHandler = {
 let Connector = {
     url: "wss://api.bitfinex.com/ws/2",
 
-    initalize: function() {
+    initalize: function () {
     },
 
     ws: null,
@@ -904,6 +904,7 @@ let InfoHandler = {
         switch (infoCode) {
             case 20051:
                 ObserverHandler.informObserver({
+                    "level": "info",
                     "title": this.infoCodes[infoCode],
                     "msg": "server is restarting / stopping"
                 });
@@ -911,6 +912,7 @@ let InfoHandler = {
 
             case 20060:
                 ObserverHandler.informObserver({
+                    "level": "info",
                     "title": this.infoCodes[infoCode],
                     "msg": "server entered maintenance mode"
                 });
@@ -918,7 +920,7 @@ let InfoHandler = {
                 break;
             case 20061:
                 this.resubscribeAllChannels();
-                ObserverHandler.informObserver({"title": this.infoCodes[infoCode], "msg": "server is operative again"});
+                ObserverHandler.informObserver({"level": "info", "title": this.infoCodes[infoCode], "msg": "server is operative again"});
                 break;
         }
     },
@@ -933,10 +935,10 @@ let InfoHandler = {
 
         if (status === 1) {
             Connector.platformStatus = 1;
-            ObserverHandler.informObserver({"title": "Successfully Connected", "msg": "server is operative"})
+            ObserverHandler.informObserver({"level": "success", "title": "Successfully Connected", "msg": "server is operative"})
         } else if (status === 0) {
             Connector.platformStatus = 0;
-            ObserverHandler.informObserver({"title": "Successfully Connected", "msg": "server is in maintenance mode"})
+            ObserverHandler.informObserver({"level": "warn", "title": "Successfully Connected", "msg": "server is in maintenance mode"})
         }
     }
 };
@@ -956,12 +958,12 @@ let TimerAndActions = {
         xhr.send(null);
     },
 
-    executeAction : function(actionName) {
+    executeAction: function (actionName) {
         const action = this.timerAndActionConfig[actionName]["action"];
         action();
     },
 
-    startTimer: function (timerName, firstExecutionIsInstant=true) {
+    startTimer: function (timerName, firstExecutionIsInstant = true) {
         const timer = this.timerAndActionConfig[timerName];
         const timeout = timer["timeout"];
         const action = timer["action"];
@@ -995,7 +997,7 @@ let TimerAndActions = {
         },
 
         reconnect: {
-            timeout: 1000*60,
+            timeout: 1000 * 60,
             action: Connector.connect,
             isRunning: false,
         }
