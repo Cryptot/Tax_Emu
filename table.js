@@ -1,251 +1,256 @@
-function Observer() {
-    this.clientRequest = null;
+class Observer {
+    constructor() {
+        this.clientRequest = null;
+    }
+
+    info() {
+        console.warn("not implemented")
+    }
+
+    update() {
+        console.warn("not implemented")
+    }
+
+    subscribeToData(clientRequest) {
+        ObserverHandler.requestData(this, clientRequest);
+        this.clientRequest = clientRequest;
+    }
+
+    unsubscribeFromData() {
+        ObserverHandler.stopDataRequest(this);
+    }
 }
 
-Observer.prototype.info = function () {
-    console.warn("not implemented")
-};
+class DOMRepresentation extends Observer {
+    constructor(parentNode) {
+        super();
+        this.parentNode = parentNode;
+        this.overlay = document.createElement("div");
+        this.title = document.createElement("div");
+        this.overlay.appendChild(this.title);
+        this.overlay.classList.add("overlay");
+        this.title.classList.add("overlayText");
+        this.title.textContent = "Test 123";
+        this.parentNode.appendChild(this.overlay);
+        this.overlay.style.display = "none";
 
-Observer.prototype.update = function () {
-    console.warn("not implemented")
-};
+        this.notificationBox = document.createElement("div",  {is: "notification-box"});
+        this.parentNode.appendChild(this.notificationBox);
+    }
 
-Observer.prototype.subscribeToData = function (clientRequest) {
-    ObserverHandler.requestData(this, clientRequest);
-    this.clientRequest = clientRequest;
-};
+    showOverlay() {
+        this.overlay.style.display = "flex";
+    }
 
-Observer.prototype.unsubscribeFromData = function () {
-    ObserverHandler.stopDataRequest(this);
-};
+    hideOverlay() {
+        this.overlay.style.display = "none";
+    }
 
-function DOMRepresentation(parentNode) {
-    Observer.call(this);
-    this.parentNode = parentNode;
-    this.overlay = document.createElement("div");
-    this.title = document.createElement("div");
-    this.overlay.appendChild(this.title);
-    this.overlay.classList.add("overlay");
-    this.title.classList.add("overlayText");
-    this.title.textContent = "Test 123";
-    this.parentNode.appendChild(this.overlay);
-    this.overlay.style.display = "none";
+    info(message) {
+        //this.showOverlay();
+        this.addNewNotification(message["level"], message["title"], message["msg"]);
+    }
 
-    this.notificationBox = document.createElement("div",  {is: "notification-box"});
-    this.parentNode.appendChild(this.notificationBox);
+    addNewNotification(level, title, message = "") {
+        const notification = document.createElement("notification-msg");
+        notification.setAttribute("data-level", level);
+        notification.setAttribute("data-title", title);
+        notification.setAttribute("data-message", message);
+        this.notificationBox.appendChild(notification);
+        //this.notificationBox.addNotificationMessage(notification);
+        //return notification;
+
+    }
 }
 
-DOMRepresentation.prototype = Object.create(Observer.prototype);
 
-DOMRepresentation.prototype.showOverlay = function () {
-    this.overlay.style.display = "flex";
-};
+class Table extends DOMRepresentation {
+    constructor(size, columnNames, parentNode, title) {
+        super(parentNode);
+        this.size = size;
+        this.titleDOM = null;
+        this.columnNames = columnNames;
+        this.tableDOM = document.createElement("div");
+        this.tableDOM.classList.add("table");
 
-DOMRepresentation.prototype.hideOverlay = function () {
-    this.overlay.style.display = "none";
-};
-
-DOMRepresentation.prototype.info = function (message) {
-    //this.showOverlay();
-    this.addNewNotification(message["level"], message["title"], message["msg"]);
-};
-
-DOMRepresentation.prototype.addNewNotification = function (level, title, message = "") {
-    const notification = document.createElement("notification-msg");
-    notification.setAttribute("data-level", level);
-    notification.setAttribute("data-title", title);
-    notification.setAttribute("data-message", message);
-    this.notificationBox.appendChild(notification);
-    //this.notificationBox.addNotificationMessage(notification);
-    //return notification;
-
-};
-
-
-function Table(size, columnNames, parentNode, title) {
-    DOMRepresentation.call(this, parentNode);
-    this.size = size;
-    this.titleDOM = null;
-    this.columnNames = columnNames;
-    this.tableDOM = document.createElement("div");
-    this.tableDOM.classList.add("table");
-
-    this.columnModifier = [];
-    this.columnOrder = [];
-    for (let i = 0; i < columnNames.length; i++) {
-        this.columnOrder.push(i);
-        this.columnModifier.push(null);
-    }
-    // first row should be header
-    this.rowsDOM = [];
-    this.cellsDOM = [];
-    this.addTitle(title);
-
-    this.addRow(true);
-
-    this.setRowCount(size);
-
-    this.parentNode.appendChild(this.tableDOM);
-}
-
-Table.prototype = Object.create(DOMRepresentation.prototype);
-
-
-Table.prototype.hideColumn = function (indexOrColumnName) {
-    if (typeof indexOrColumnName === "string") {
-        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
-    }
-    for (const row of this.cellsDOM) {
-        row[indexOrColumnName].style.display = "none";
-    }
-};
-
-Table.prototype.showColumn = function (indexOrColumnName) {
-    if (typeof indexOrColumnName === "string") {
-        indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
-    }
-    for (const row of this.cellsDOM) {
-        row[indexOrColumnName].style.display = "table-cell";
-    }
-};
-
-Table.prototype.setRowCount = function (count) {
-    const currentCount = this.rowsDOM.length - 1;
-    if (count < currentCount) {
-        for (let i = count + 1; i < currentCount + 1; i++) {
-            this.tableDOM.removeChild(this.rowsDOM[i]);
+        this.columnModifier = [];
+        this.columnOrder = [];
+        for (let i = 0; i < columnNames.length; i++) {
+            this.columnOrder.push(i);
+            this.columnModifier.push(null);
         }
-        this.rowsDOM.splice(count + 1, currentCount - count);
-        this.cellsDOM.splice(count + 1, currentCount - count);
+        // first row should be header
+        this.rowsDOM = [];
+        this.cellsDOM = [];
+        this.addTitle(title);
+
+        this.addRow(true);
+
+        this.setRowCount(size);
+
+        this.parentNode.appendChild(this.tableDOM);
     }
 
-    if (count > currentCount) {
-        for (let i = 0; i < count - currentCount; i++) {
-            this.addRow();
+    hideColumn(indexOrColumnName) {
+        if (typeof indexOrColumnName === "string") {
+            indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
         }
-    }
-};
-
-Table.prototype.setAllCellsToPlaceholder = function (includeColumnTitles = false, includeTitle = false) {
-    if (includeTitle) {
-        this.titleDOM.textContent = "-"
-    }
-    for (const row of includeColumnTitles ? this.cellsDOM : this.cellsDOM.slice(1)) {
-        for (const cell of row) {
-            cell.textContent = "-";
+        for (const row of this.cellsDOM) {
+            row[indexOrColumnName].style.display = "none";
         }
     }
 
-};
-
-Table.prototype.getCell = function (title, setDataTitle = true, defaultValue = "-") {
-    const cell = document.createElement("div");
-    cell.textContent = defaultValue;
-    cell.classList.add("cell");
-    if (setDataTitle) {
-        cell.setAttribute("data-title", title);
-    } else {
-        cell.textContent = title;
-    }
-    return cell;
-};
-
-Table.prototype.addRow = function (isHeader = false) {
-    const rowDOM = document.createElement("div");
-    rowDOM.classList.add("row");
-    if (isHeader) {
-        rowDOM.classList.add("header");
-    }
-
-    const internalRow = [];
-    for (const columnIndex of this.columnOrder) {
-        const newCell = this.getCell(this.columnNames[columnIndex], !isHeader);
-        internalRow.push(newCell);
-        rowDOM.appendChild(newCell);
-    }
-    this.cellsDOM.push(internalRow);
-    this.rowsDOM.push(rowDOM);
-    this.tableDOM.appendChild(rowDOM);
-};
-
-Table.prototype.addTitle = function (title) {
-    if (!this.hasOwnProperty("title") || this.titleDOM === null) {
-        const titleDOM = document.createElement("div");
-        titleDOM.classList.add("table-caption");
-        titleDOM.textContent = title;
-        this.titleDOM = titleDOM;
-        this.tableDOM.appendChild(titleDOM);
-    } else {
-        this.titleDOM.textContent = title;
-    }
-
-};
-
-Table.prototype.fillRow = function (index, rowData, changeAnimation = false) {
-    const row = this.cellsDOM[index];
-    for (let i = 0; i < this.columnOrder.length; i++) {
-        if (changeAnimation) {
-            //row[i].classList.remove("change");
-            //void row[i].offsetWidth;
-            //row[i].classList.add("change");
+    showColumn(indexOrColumnName) {
+        if (typeof indexOrColumnName === "string") {
+            indexOrColumnName = this.columnOrder.indexOf(this.columnNames.indexOf(indexOrColumnName));
         }
-        const dataIndex = this.columnOrder[i];
-        const func = this.columnModifier[dataIndex];
-
-        let newContent = rowData[dataIndex];
-        if (func instanceof Function) {
-            newContent = func(newContent);
+        for (const row of this.cellsDOM) {
+            row[indexOrColumnName].style.display = "table-cell";
         }
-        row[i].textContent = newContent;
     }
-};
-Table.prototype.fillTable = function (data, metadata) {
-    for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
-        this.fillRow(i, data[i - 1]);
+
+    setRowCount(count) {
+        const currentCount = this.rowsDOM.length - 1;
+        if (count < currentCount) {
+            for (let i = count + 1; i < currentCount + 1; i++) {
+                this.tableDOM.removeChild(this.rowsDOM[i]);
+            }
+            this.rowsDOM.splice(count + 1, currentCount - count);
+            this.cellsDOM.splice(count + 1, currentCount - count);
+        }
+
+        if (count > currentCount) {
+            for (let i = 0; i < count - currentCount; i++) {
+                this.addRow();
+            }
+        }
     }
-};
 
-Table.prototype.update = function (data, metadata) {
-    //this.hideOverlay();
-    this.fillTable(data, metadata);
-};
+    setAllCellsToPlaceholder(includeColumnTitles = false, includeTitle = false) {
+        if (includeTitle) {
+            this.titleDOM.textContent = "-"
+        }
+        for (const row of includeColumnTitles ? this.cellsDOM : this.cellsDOM.slice(1)) {
+            for (const cell of row) {
+                cell.textContent = "-";
+            }
+        }
 
-function OrderBookTable(size, columnNames, parentNode, title) {
-    Table.call(this, size, columnNames, parentNode, title);
+    }
+
+    static getCell(title, setDataTitle = true, defaultValue = "-") {
+        const cell = document.createElement("div");
+        cell.textContent = defaultValue;
+        cell.classList.add("cell");
+        if (setDataTitle) {
+            cell.setAttribute("data-title", title);
+        } else {
+            cell.textContent = title;
+        }
+        return cell;
+    }
+
+    addRow(isHeader = false) {
+        const rowDOM = document.createElement("div");
+        rowDOM.classList.add("row");
+        if (isHeader) {
+            rowDOM.classList.add("header");
+        }
+
+        const internalRow = [];
+        for (const columnIndex of this.columnOrder) {
+            const newCell = Table.getCell(this.columnNames[columnIndex], !isHeader);
+            internalRow.push(newCell);
+            rowDOM.appendChild(newCell);
+        }
+        this.cellsDOM.push(internalRow);
+        this.rowsDOM.push(rowDOM);
+        this.tableDOM.appendChild(rowDOM);
+    }
+
+    addTitle(title) {
+        if (!this.hasOwnProperty("title") || this.titleDOM === null) {
+            const titleDOM = document.createElement("div");
+            titleDOM.classList.add("table-caption");
+            titleDOM.textContent = title;
+            this.titleDOM = titleDOM;
+            this.tableDOM.appendChild(titleDOM);
+        } else {
+            this.titleDOM.textContent = title;
+        }
+
+    }
+
+    fillRow(index, rowData, changeAnimation = false) {
+        const row = this.cellsDOM[index];
+        for (let i = 0; i < this.columnOrder.length; i++) {
+            if (changeAnimation) {
+                //row[i].classList.remove("change");
+                //void row[i].offsetWidth;
+                //row[i].classList.add("change");
+            }
+            const dataIndex = this.columnOrder[i];
+            const func = this.columnModifier[dataIndex];
+
+            let newContent = rowData[dataIndex];
+            if (func instanceof Function) {
+                newContent = func(newContent);
+            }
+            row[i].textContent = newContent;
+        }
+    }
+
+    fillTable(data, metadata) {
+        for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
+            this.fillRow(i, data[i - 1]);
+        }
+    }
+
+    update(data, metadata) {
+        //this.hideOverlay();
+        this.fillTable(data, metadata);
+    }
 }
 
-OrderBookTable.prototype = Object.create(Table.prototype);
 
-OrderBookTable.prototype.fillTable = function (data, metadata) {
-    for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
-        const newPrice = data[i - 1][3];
-        this.fillRow(i, data[i - 1], metadata.has(newPrice));
+class OrderBookTable extends Table {
+    constructor(size, columnNames, parentNode, title) {
+        super(size, columnNames, parentNode, title);
     }
-};
 
-function TradesTable(size, columnNames, parentNode, title) {
-    Table.call(this, size, columnNames, parentNode, title);
+    fillTable(data, metadata) {
+        for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
+            const newPrice = data[i - 1][3];
+            this.fillRow(i, data[i - 1], metadata.has(newPrice));
+        }
+    }
 }
 
-TradesTable.prototype = Object.create(Table.prototype);
 
-TradesTable.prototype.fillTable = function (data, metadata) {
-    for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
-        this.fillRow(i, data[i - 1], i === 1);
+class TradesTable extends Table {
+    constructor(size, columnNames, parentNode, title) {
+        super(size, columnNames, parentNode, title);
     }
-};
 
-function TickerTable(size, columnNames, parentNode, title) {
-    Table.call(this, size, columnNames, parentNode, title);
+    fillTable(data, metadata) {
+        for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
+            this.fillRow(i, data[i - 1], i === 1);
+        }
+    }
 }
 
-TickerTable.prototype = Object.create(Table.prototype);
 
-TickerTable.prototype.fillTable = function (data, metadata) {
-    for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
-        this.fillRow(i, data[i - 1], i === 1);
+class TickerTable extends Table {
+    constructor(size, columnNames, parentNode, title) {
+        super(size, columnNames, parentNode, title);
     }
-};
+
+    fillTable(data, metadata) {
+        for (let i = 1; i < this.size + 1 && i < data.length + 1; i++) {
+            this.fillRow(i, data[i - 1], i === 1);
+        }
+    }
+}
 
 
 class OrderBookView extends HTMLElement {
