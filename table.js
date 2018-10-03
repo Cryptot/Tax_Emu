@@ -31,10 +31,8 @@ function DOMRepresentation(parentNode) {
     this.parentNode.appendChild(this.overlay);
     this.overlay.style.display = "none";
 
-
-    this.notificationBox = document.createElement("div");
-    this.notificationBox.classList.add("notification-box");
-    this.parentNode.append(this.notificationBox);
+    this.notificationBox = document.createElement("div",  {is: "notification-box"});
+    this.parentNode.appendChild(this.notificationBox);
 }
 
 DOMRepresentation.prototype = Object.create(Observer.prototype);
@@ -52,12 +50,13 @@ DOMRepresentation.prototype.info = function (message) {
     this.addNewNotification(message["level"], message["title"], message["msg"]);
 };
 
-DOMRepresentation.prototype.addNewNotification = function (level, title, message="") {
+DOMRepresentation.prototype.addNewNotification = function (level, title, message = "") {
     const notification = document.createElement("notification-msg");
     notification.setAttribute("data-level", level);
     notification.setAttribute("data-title", title);
     notification.setAttribute("data-message", message);
     this.notificationBox.appendChild(notification);
+    //this.notificationBox.addNotificationMessage(notification);
     //return notification;
 
 };
@@ -376,17 +375,48 @@ class TickerView extends HTMLElement {
         }
     }*/
 }
+class NotificationBox extends HTMLDivElement {
+    constructor() {
+        super();
+        this.isInitialized = false;
+        //this.connectedCallback();
+
+    }
+
+    connectedCallback() {
+        console.log("CONNECTED CALLBACK");
+        if (!this.isInitialized) {
+            const style = document.createElement("style");
+            style.innerText =
+    `.notification-box {
+            position: absolute;
+            display: flex;
+            justify-content: flex-end;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }`;
+            this.appendChild(style);
+            this.classList.add("notification-box");
+        }
+    }
+}
 
 class NotificationMessage extends HTMLElement {
     constructor() {
         super();
         const shadow = this.attachShadow({mode: "open"});
+        this.isShadowDOMInitialized = false;
 
     }
 
     connectedCallback() {
-        const style = document.createElement("style");
-        style.innerText =
+        if (!this.isShadowDOMInitialized) {
+
+            const style = document.createElement("style");
+            style.innerText =
     `.notification {
             position: relative;
             width: 100%;
@@ -444,32 +474,40 @@ class NotificationMessage extends HTMLElement {
             color: #000;
             background-color: #ccc;
         }`;
+            this.shadowRoot.appendChild(style);
 
-        this.shadowRoot.appendChild(style);
+            const notification = this;
+            notification.classList.add("notification");
+            notification.classList.add(this.getLevel());
 
+            this.closeButton = document.createElement("span");
+            this.closeButton.classList.add("close-button");
+            this.closeButton.onclick = function () {
+                notification.style.display = "none";
+                notification.remove();
+            };
+            this.closeButton.innerHTML = "&times";
+            this.shadowRoot.appendChild(this.closeButton);
 
-        const notification = this;
-        notification.classList.add("notification");
-        notification.classList.add(this.getLevel());
+            this.notificationTitle = document.createElement("p");
+            this.notificationTitle.classList.add("notification-title");
+            this.notificationTitle.textContent = this.getTitle();
+            this.shadowRoot.appendChild(this.notificationTitle);
 
-        this.closeButton = document.createElement("span");
-        this.closeButton.classList.add("close-button");
-        this.closeButton.onclick = function () {
-            notification.style.display = "none";
-            notification.remove();
-        };
-        this.closeButton.innerHTML = "&times";
-        this.shadowRoot.appendChild(this.closeButton);
+            this.notificationBody = document.createElement("p");
+            this.notificationBody.classList.add("notification-text");
+            this.notificationBody.textContent = this.getMessage();
+            this.shadowRoot.appendChild(this.notificationBody);
 
-        this.notificationTitle = document.createElement("p");
-        this.notificationTitle.classList.add("notification-title");
-        this.notificationTitle.textContent = this.getTitle();
-        this.shadowRoot.appendChild(this.notificationTitle);
+            this.isShadowDOMInitialized = true;
+        } else {
+            this.classList.remove("success", "info", "warn", "error");
+            this.notification.classList.add(this.getLevel());
 
-        this.notificationBody = document.createElement("p");
-        this.notificationBody.classList.add("notification-text");
-        this.notificationBody.textContent = this.getMessage();
-        this.shadowRoot.appendChild(this.notificationBody);
+            this.notificationTitle.textContent = this.getTitle();
+
+            this.notificationBody.textContent = this.getMessage();
+        }
 
     }
 
@@ -502,6 +540,7 @@ class NotificationMessage extends HTMLElement {
 }
 
 window.onload = function () {
+    customElements.define("notification-box", NotificationBox, {extends: "div"});
     customElements.define("notification-msg", NotificationMessage);
     customElements.define("order-book-view", OrderBookView);
     customElements.define("trades-view", TradesView);
