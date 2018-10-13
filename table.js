@@ -21,74 +21,84 @@ class Observer {
     }
 }
 
-class DOMRepresentation extends Observer {
-    constructor(parentNode) {
+class DivTable extends HTMLDivElement {
+    constructor() {
         super();
-        this.parentNode = parentNode;
-        this.overlay = document.createElement("div");
-        this.title = document.createElement("div");
-        this.overlay.appendChild(this.title);
-        this.overlay.classList.add("overlay");
-        this.title.classList.add("overlayText");
-        this.title.textContent = "Test 123";
-        this.parentNode.appendChild(this.overlay);
-        this.overlay.style.display = "none";
-
-        this.notificationBox = document.createElement("div",  {is: "notification-box"});
-        this.parentNode.appendChild(this.notificationBox);
-    }
-
-    showOverlay() {
-        this.overlay.style.display = "flex";
-    }
-
-    hideOverlay() {
-        this.overlay.style.display = "none";
-    }
-
-    info(message) {
-        //this.showOverlay();
-        this.addNewNotification(message["level"], message["title"], message["msg"]);
-    }
-
-    addNewNotification(level, title, message = "") {
-        const notification = document.createElement("notification-msg");
-        notification.setAttribute("data-level", level);
-        notification.setAttribute("data-title", title);
-        notification.setAttribute("data-message", message);
-        this.notificationBox.appendChild(notification);
-        //this.notificationBox.addNotificationMessage(notification);
-        //return notification;
 
     }
+
+    connectedCallback() {
+
+        const style = document.createElement("style");
+        style.innerText = `
+.table {
+    display: table;
 }
 
+.table-caption {
+    display: table-caption;
+    background: #f6f6f6;
+    text-align: center;
+    padding: 7px 20px;
+}
 
-class Table extends DOMRepresentation {
-    constructor(size, columnNames, parentNode, title) {
-        super(parentNode);
-        this.size = size;
+.row {
+    display: table-row;
+    background: #f6f6f6;
+}
+
+.row:nth-of-type(odd) {
+    background: #e9e9e9;
+}
+
+.row:nth-of-type(even) {
+    background: #f6f6f6;
+}
+
+.row.header {
+    font-weight: 900;
+    color: #ffffff;
+    background: #ea6153;
+}
+
+.cell {
+    padding: 6px 12px;
+    width: 100px;
+    max-width: 100px;
+    display: table-cell;
+}`;
+        this.appendChild(style);
+
         this.titleDOM = null;
-        this.columnNames = columnNames;
-        this.tableDOM = document.createElement("div");
-        this.tableDOM.classList.add("table");
+        this.classList.add("table");
 
         this.columnModifier = [];
         this.columnOrder = [];
-        for (let i = 0; i < columnNames.length; i++) {
+        for (let i = 0; i < this.columnNames.length; i++) {
             this.columnOrder.push(i);
             this.columnModifier.push(null);
         }
         // first row should be header
         this.rowsDOM = [];
         this.cellsDOM = [];
-        this.addTitle(title);
+        this.addTitle(this.title);
 
         this.addRow(true);
 
-        this.setRowCount(size);
+        this.setRowCount(this.size);
 
-        this.parentNode.appendChild(this.tableDOM);
+    }
+
+    setColumnNames(columnNames) {
+        this.columnNames = columnNames;
+    }
+
+    setSize(size) {
+        this.size = size;
+    }
+
+    setTitle(title) {
+        this.title = title;
     }
 
     hideColumn(indexOrColumnName) {
@@ -113,7 +123,7 @@ class Table extends DOMRepresentation {
         const currentCount = this.rowsDOM.length - 1;
         if (count < currentCount) {
             for (let i = count + 1; i < currentCount + 1; i++) {
-                this.tableDOM.removeChild(this.rowsDOM[i]);
+                this.removeChild(this.rowsDOM[i]);
             }
             this.rowsDOM.splice(count + 1, currentCount - count);
             this.cellsDOM.splice(count + 1, currentCount - count);
@@ -159,13 +169,13 @@ class Table extends DOMRepresentation {
 
         const internalRow = [];
         for (const columnIndex of this.columnOrder) {
-            const newCell = Table.getCell(this.columnNames[columnIndex], !isHeader);
+            const newCell = DivTable.getCell(this.columnNames[columnIndex], !isHeader);
             internalRow.push(newCell);
             rowDOM.appendChild(newCell);
         }
         this.cellsDOM.push(internalRow);
         this.rowsDOM.push(rowDOM);
-        this.tableDOM.appendChild(rowDOM);
+        this.appendChild(rowDOM);
     }
 
     addTitle(title) {
@@ -174,7 +184,7 @@ class Table extends DOMRepresentation {
             titleDOM.classList.add("table-caption");
             titleDOM.textContent = title;
             this.titleDOM = titleDOM;
-            this.tableDOM.appendChild(titleDOM);
+            this.appendChild(titleDOM);
         } else {
             this.titleDOM.textContent = title;
         }
@@ -212,10 +222,54 @@ class Table extends DOMRepresentation {
     }
 }
 
+class BaseElement extends HTMLElement {
+    constructor() {
+        super();
+        this.shadow = this.attachShadow({mode: "open"});
 
-class OrderBookTable extends Table {
-    constructor(size, columnNames, parentNode, title) {
-        super(size, columnNames, parentNode, title);
+    }
+}
+
+class ObserverBaseElement extends HTMLElement {
+    constructor() {
+        super();
+        this.shadow = this.attachShadow({mode: "open"});
+
+    }
+
+    connectedCallback() {
+        const style = document.createElement("style");
+        style.innerText = `
+     .wrapper {
+    float: left;
+    position: relative;
+}`;
+        this.shadow.appendChild(style);
+        this.classList.add("wrapper");
+    }
+
+    info() {
+        console.warn("not implemented")
+    }
+
+    update() {
+        console.warn("not implemented")
+    }
+
+    subscribeToData(clientRequest) {
+        ObserverHandler.requestData(this, clientRequest);
+        this.clientRequest = clientRequest;
+    }
+
+    unsubscribeFromData() {
+        ObserverHandler.stopDataRequest(this);
+    }
+}
+
+
+class OrderBookTable extends DivTable {
+    constructor() {
+        super();
     }
 
     fillTable(data, metadata) {
@@ -227,7 +281,7 @@ class OrderBookTable extends Table {
 }
 
 
-class TradesTable extends Table {
+class TradesTable extends DivTable {
     constructor(size, columnNames, parentNode, title) {
         super(size, columnNames, parentNode, title);
     }
@@ -240,7 +294,7 @@ class TradesTable extends Table {
 }
 
 
-class TickerTable extends Table {
+class TickerTable extends DivTable {
     constructor(size, columnNames, parentNode, title) {
         super(size, columnNames, parentNode, title);
     }
@@ -253,33 +307,41 @@ class TickerTable extends Table {
 }
 
 
-class OrderBookView extends HTMLElement {
+class OrderBookView extends ObserverBaseElement {
     static get observedAttributes() {
         return ["data-count", "data-pair", "data-askOrBid"];
     }
 
     constructor() {
         super();
-        this.classList.add("wrapper");
-        this.shadow = this.attachShadow({mode: "open"});
-        this.shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
     }
 
     disconnectedCallback() {
-        this.table.unsubscribeFromData();
-        let child;
-        while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
-            this.shadowRoot.removeChild(child);
-        }
+        this.unsubscribeFromData();
+        this.removeChild(this.table);
+        this.removeChild(this.notificationBox);
     }
 
     connectedCallback() {
+        super.connectedCallback();
         const request = this.createRequestFromAttributes();
         const title = "ORDERBOOK - " + request.askOrBid.toUpperCase() + " - " + request.currencyPair;
-        this.table = new OrderBookTable(request.recordCount, OrderBookData.getDataFields(), this.shadow, title);
-        this.table.subscribeToData(request);
+        //this.table = new OrderBookTable(request.recordCount, OrderBookData.getDataFields(), this.shadow, title);
+        this.table = document.createElement("div", {is: "order-book-table"});
+        //this.table = new OrderBookTable();
+        this.table.setSize(request.recordCount);
+        this.table.setColumnNames(OrderBookData.getDataFields());
+        this.table.setTitle(title);
         const round3 = (x) => round(x, 3);
         this.table.columnModifier = [round3, round3, round3, null];
+
+        this.notificationBox = document.createElement("div", {is: "notification-box"});
+
+
+        this.shadow.appendChild(this.table);
+        this.shadow.appendChild(this.notificationBox);
+
+        this.subscribeToData(request);
 
     }
 
@@ -289,34 +351,45 @@ class OrderBookView extends HTMLElement {
         const currencyPair = this.getAttribute("data-pair");
         return new OrderBookRequest("P0", recordCount, askOrBid, currencyPair, "realtime")
     }
+
+    update(data, metadata) {
+        this.table.fillTable(data, metadata);
+    }
+
+    info(message) {
+        this.notificationBox.addNewNotification(message["level"], message["title"], message["msg"]);
+    }
 }
 
-class TradesView extends HTMLElement {
+class TradesView extends ObserverBaseElement {
     static get observedAttributes() {
         return ["data-count", "data-pair", "data-soldOrBoughtOrBoth"];
     }
 
     constructor() {
         super();
-        this.classList.add("wrapper");
-        const shadow = this.attachShadow({mode: "open"});
-        shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
     }
 
     disconnectedCallback() {
-        this.table.unsubscribeFromData();
-        let child;
-        while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
-            this.shadowRoot.removeChild(child);
-        }
+        this.unsubscribeFromData();
+        this.removeChild(this.table);
+        this.removeChild(this.notificationBox);
     }
 
     connectedCallback() {
+        super.connectedCallback();
         const request = this.createRequestFromAttributes();
         const title = request.soldOrBoughtOrBoth.toUpperCase() + " - " + request.currencyPair;
-        this.table = new TradesTable(request.recordCount, TradesData.getDataFields(), this.shadow, title);
-        this.table.subscribeToData(request);
 
+        this.table = document.createElement("div", {is: "trades-table"});
+        this.table.setSize(request.recordCount);
+        this.table.setColumnNames(TradesData.getDataFields());
+        this.table.setTitle(title);
+
+        this.notificationBox = document.createElement("div", {is: "notification-box"});
+        this.shadow.appendChild(this.table);
+        this.shadow.appendChild(this.notificationBox);
+        this.subscribeToData(request);
     }
 
     createRequestFromAttributes() {
@@ -325,34 +398,45 @@ class TradesView extends HTMLElement {
         const soldOrBoughtOrBoth = this.getAttribute("data-soldOrBoughtOrBoth");
         return new TradesRequest(currencyPair, recordCount, soldOrBoughtOrBoth, recordCount);
     }
+    update(data, metadata) {
+        this.table.fillTable(data, metadata);
+    }
+
+    info(message) {
+        this.notificationBox.addNewNotification(message["level"], message["title"], message["msg"]);
+    }
 }
 
-class TickerView extends HTMLElement {
+class TickerView extends ObserverBaseElement {
     /*static get observedAttributes() {
         return ["data-count", "data-pair"];
     }*/
 
     constructor() {
         super();
-        const shadow = this.attachShadow({mode: "open"});
-        shadow.innerHTML = "<link rel=\"stylesheet\" type=\"text/css\" href=\"table.css\" media=\"screen\" />";
     }
 
     disconnectedCallback() {
-        this.classList.remove("wrapper");
-        this.table.unsubscribeFromData();
-        let child;
-        while ((child = this.shadowRoot.lastChild) !== this.shadowRoot.firstChild) {
-            this.shadowRoot.removeChild(child);
-        }
+        //this.classList.remove("wrapper");
+        this.unsubscribeFromData();
+        this.removeChild(this.table);
+        this.removeChild(this.notificationBox);
     }
 
     connectedCallback() {
         this.classList.add("wrapper");
         const request = this.createRequestFromAttributes();
         const title = "TICKER - " + request.currencyPair;
-        this.table = new TickerTable(request.recordCount, TickerData.getDataFields(), this.shadowRoot, title);
-        this.table.subscribeToData(request);
+
+        this.table = document.createElement("div", {is: "trades-table"});
+        this.table.setSize(request.recordCount);
+        this.table.setColumnNames(TickerData.getDataFields());
+        this.table.setTitle(title);
+
+        this.notificationBox = document.createElement("div", {is: "notification-box"});
+        this.shadow.appendChild(this.table);
+        this.shadow.appendChild(this.notificationBox);
+        this.subscribeToData(request);
 
     }
 
@@ -360,6 +444,14 @@ class TickerView extends HTMLElement {
         const currencyPair = this.getAttribute("data-pair");
         const recordCount = parseInt(this.getAttribute("data-count"));
         return new TickerRequest(currencyPair, recordCount, recordCount);
+    }
+
+    update(data, metadata) {
+        this.table.fillTable(data, metadata);
+    }
+
+    info(message) {
+        this.notificationBox.addNewNotification(message["level"], message["title"], message["msg"]);
     }
 
     /*attributeChangedCallback(name, oldValue, newValue) {
@@ -380,21 +472,20 @@ class TickerView extends HTMLElement {
         }
     }*/
 }
+
 class NotificationBox extends HTMLDivElement {
     constructor() {
         super();
         this.isInitialized = false;
-        //this.connectedCallback();
-
     }
 
     connectedCallback() {
-        console.log("CONNECTED CALLBACK");
         if (!this.isInitialized) {
             const style = document.createElement("style");
             style.innerText =
-    `.notification-box {
+                `.notification-box {
             position: absolute;
+            top: 0;
             display: flex;
             justify-content: flex-end;
             flex-direction: column;
@@ -402,27 +493,8 @@ class NotificationBox extends HTMLDivElement {
             height: 100%;
             overflow: hidden;
             pointer-events: none;
-        }`;
-            this.appendChild(style);
-            this.classList.add("notification-box");
         }
-    }
-}
-
-class NotificationMessage extends HTMLElement {
-    constructor() {
-        super();
-        const shadow = this.attachShadow({mode: "open"});
-        this.isShadowDOMInitialized = false;
-
-    }
-
-    connectedCallback() {
-        if (!this.isShadowDOMInitialized) {
-
-            const style = document.createElement("style");
-            style.innerText =
-    `.notification {
+    .notification {
             position: relative;
             width: 100%;
             box-sizing: border-box;
@@ -479,8 +551,30 @@ class NotificationMessage extends HTMLElement {
             color: #000;
             background-color: #ccc;
         }`;
-            this.shadowRoot.appendChild(style);
+            this.appendChild(style);
+            this.classList.add("notification-box");
+        }
+    }
 
+    addNewNotification(level, title, message = "") {
+        const notification = document.createElement("div", {is: "notification-msg"});
+        notification.setAttribute("data-level", level);
+        notification.setAttribute("data-title", title);
+        notification.setAttribute("data-message", message);
+        this.appendChild(notification);
+    }
+}
+
+class NotificationMessage extends HTMLDivElement {
+    constructor() {
+        super();
+        //const shadow = this.attachShadow({mode: "open"});
+        this.isShadowDOMInitialized = false;
+
+    }
+
+    connectedCallback() {
+        if (!this.isShadowDOMInitialized) {
             const notification = this;
             notification.classList.add("notification");
             notification.classList.add(this.getLevel());
@@ -492,22 +586,22 @@ class NotificationMessage extends HTMLElement {
                 notification.remove();
             };
             this.closeButton.innerHTML = "&times";
-            this.shadowRoot.appendChild(this.closeButton);
+            this.appendChild(this.closeButton);
 
             this.notificationTitle = document.createElement("p");
             this.notificationTitle.classList.add("notification-title");
             this.notificationTitle.textContent = this.getTitle();
-            this.shadowRoot.appendChild(this.notificationTitle);
+            this.appendChild(this.notificationTitle);
 
             this.notificationBody = document.createElement("p");
             this.notificationBody.classList.add("notification-text");
             this.notificationBody.textContent = this.getMessage();
-            this.shadowRoot.appendChild(this.notificationBody);
+            this.appendChild(this.notificationBody);
 
             this.isShadowDOMInitialized = true;
         } else {
             this.classList.remove("success", "info", "warn", "error");
-            this.notification.classList.add(this.getLevel());
+            this.classList.add(this.getLevel());
 
             this.notificationTitle.textContent = this.getTitle();
 
@@ -546,7 +640,10 @@ class NotificationMessage extends HTMLElement {
 
 window.onload = function () {
     customElements.define("notification-box", NotificationBox, {extends: "div"});
-    customElements.define("notification-msg", NotificationMessage);
+    customElements.define("notification-msg", NotificationMessage, {extends: "div"});
+    customElements.define("order-book-table", OrderBookTable, {extends: "div"});
+    customElements.define("trades-table", TradesTable, {extends: "div"});
+    customElements.define("ticker-table", TickerTable, {extends: "div"});
     customElements.define("order-book-view", OrderBookView);
     customElements.define("trades-view", TradesView);
     customElements.define("ticker-view", TickerView);
