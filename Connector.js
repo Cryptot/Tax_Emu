@@ -356,7 +356,7 @@ let ObserverHandler = {
 
     /**
      * register a node for specific data updates
-     * @param {Observer} source the DOM node to which the data is sent
+     * @param {ObserverBaseElement} source the DOM node to which the data is sent
      * @param {ClientRequest} clientRequest the object to request specific data
      */
     requestData: function (source, clientRequest) {
@@ -391,7 +391,7 @@ let ObserverHandler = {
     },
     /**
      *
-     * @param {Observer} source
+     * @param {ObserverBaseElement} source
      */
     stopDataRequest: function (source) {
         const chanId = this.observerChanIdMapping.get(source);
@@ -761,23 +761,47 @@ let DataHandler = {
 let Connector = {
     url: "wss://api.bitfinex.com/ws/2",
 
-    initalize: function () {
+    initialize: function () {
+        window.addEventListener('online', function (e) {
+            ObserverHandler.informObserver({
+                "level": "success",
+                "title": "connection restored",
+                "msg": "connected to the internet"
+            });
+            TimerAndActions.executeAction("waitForPong", 2500);
+            TimerAndActions.executeAction("pingWebSocket");
+        });
+        window.addEventListener('offline', function (e) {
+            ObserverHandler.informObserver({
+                "level": "warn",
+                "title": "connection lost",
+                "msg": "waiting for connection"
+            });
+
+
+
+        });
     },
 
     ws: null,
+
+    pingWebSocket: function() {
+        const action = {event: "ping"};
+        Connector.ws.send(JSON.stringify(action));
+    },
 
     /**
      * establish a connection with the server
      */
 
     connect: function () {
-        this.ws = null;
+        Connector.ws = null;
 
-        this.ws = new WebSocket(this.url);
+        Connector.ws = new WebSocket(Connector.url);
 
-        this.ws.onmessage = MessageHandler.handle;
+        Connector.ws.onmessage = MessageHandler.handle;
 
-        this.ws.onopen = function () {
+        Connector.ws.onopen = function () {
             TimerAndActions.stopTimer("reconnect");
 
             for (const sub of subscriptionManager.subscriptionQueue) {
@@ -788,12 +812,19 @@ let Connector = {
             subscriptionManager.resubscribeAllChannels();
 
         };
-        this.ws.onerror = function (err) {
+        Connector.ws.onerror = function (err) {
         };
 
-        this.onclose = function (evt) {
+        Connector.ws.onclose = function (evt) {
+            console.log("onclose");
             if (evt.code !== 1000) {
+                ObserverHandler.informObserver({
+                    "level": "warn",
+                    "title": "websocket closed",
+                    "msg": "websocket connection closed, trying to reconnect"
+                });
                 TimerAndActions.startTimer("reconnect");
+
             } else {
                 console.info("connection closed normally");
             }
@@ -866,6 +897,7 @@ let MessageHandler = {
                     break;
                 case
                 MessageHandler.eventTypes.pong:
+                    TimerAndActions.abortAction("waitForPong");
                     break;
             }
         }
@@ -920,7 +952,11 @@ let InfoHandler = {
                 break;
             case 20061:
                 this.resubscribeAllChannels();
-                ObserverHandler.informObserver({"level": "info", "title": this.infoCodes[infoCode], "msg": "server is operative again"});
+                ObserverHandler.informObserver({
+                    "level": "info",
+                    "title": this.infoCodes[infoCode],
+                    "msg": "server is operative again"
+                });
                 break;
         }
     },
@@ -935,14 +971,21 @@ let InfoHandler = {
 
         if (status === 1) {
             Connector.platformStatus = 1;
-            ObserverHandler.informObserver({"level": "success", "title": "Successfully Connected", "msg": "server is operative"})
+            ObserverHandler.informObserver({
+                "level": "success",
+                "title": "Successfully Connected",
+                "msg": "server is operative"
+            })
         } else if (status === 0) {
             Connector.platformStatus = 0;
-            ObserverHandler.informObserver({"level": "warn", "title": "Successfully Connected", "msg": "server is in maintenance mode"})
+            ObserverHandler.informObserver({
+                "level": "warn",
+                "title": "Successfully Connected",
+                "msg": "server is in maintenance mode"
+            })
         }
     }
 };
-
 let TimerAndActions = {
     _getAllAvailableSymbols: function () {
         let xhr = new XMLHttpRequest();
@@ -958,13 +1001,21 @@ let TimerAndActions = {
         xhr.send(null);
     },
 
-    executeAction: function (actionName) {
-        const action = this.timerAndActionConfig[actionName]["action"];
-        action();
+    executeAction: function (actionName, timeout=0) {
+        const action = TimerAndActions.timerAndActionConfig[actionName]["action"];
+        if (timeout > 0) {
+            setTimeout(action, timeout);
+        }
+    },
+
+    abortAction: function(actionName) {
+        const action = TimerAndActions.timerAndActionConfig[actionName]["action"];
+        clearTimeout(action);
+
     },
 
     startTimer: function (timerName, firstExecutionIsInstant = true) {
-        const timer = this.timerAndActionConfig[timerName];
+        const timer = TimerAndActions.timerAndActionConfig[timerName];
         const timeout = timer["timeout"];
         const action = timer["action"];
         const isRunning = timer["isRunning"];
@@ -974,32 +1025,47 @@ let TimerAndActions = {
                 action();
             }
             timer["isRunning"] = true;
-            setTimeout(action, timeout);
+            setInterval(action, timeout);
         }
     },
 
     stopTimer: function (timerName) {
-        const timer = this.timerAndActionConfig[timerName];
+        const timer = TimerAndActions.timerAndActionConfig[timerName];
         const action = timer["action"];
         const isRunning = timer["isRunning"];
 
         if (isRunning) {
-            clearTimeout(action);
+            clearInterval(action);
             timer["isRunning"] = false;
         }
     },
 
     timerAndActionConfig: {
         getAllSymbols: {
-            timeout: 1000 * 60 * 15,
-            action: this._getAllAvailableSymbols,
+            timerInterval: 1000 * 60 * 15,
+            action: TimerAndActions._getAllAvailableSymbols,
             isRunning: false,
         },
 
         reconnect: {
-            timeout: 1000 * 60,
+            timerInterval: 1000 * 60,
             action: Connector.connect,
             isRunning: false,
+        },
+
+        waitForPong: {
+            action: function() {
+                console.log("waitforpong");
+                ObserverHandler.informObserver({
+                    "level": "warn",
+                    "title": "no connection",
+                    "msg": "connection test failed, trying to reconnect"
+                });
+                TimerAndActions.startTimer("reconnect");
+            },
+        },
+        pingWebSocket: {
+            action: Connector.pingWebSocket,
         }
     },
 };
@@ -1014,7 +1080,7 @@ let Constants = {};
 /**
  * An object describing an observer
  * @typedef {Object} ObserverDescriptor
- * @property {Observer} source the element which receives the data
+ * @property {ObserverBaseElement} source the element which receives the data
  * @property {ClientRequest} clientRequest the request which source has sent
  * @property {boolean} [needInitialData] indicates whether source has not yet received any data
  */
@@ -1122,7 +1188,7 @@ function CandlesRequest(currencyPair, timeFrame, recordCount, initialRecordCount
     this.initialRecordCount = initialRecordCount;
 }
 
-
+Connector.initialize();
 Connector.connect();
 
 

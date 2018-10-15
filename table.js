@@ -24,7 +24,6 @@ class Observer {
 class DivTable extends HTMLDivElement {
     constructor() {
         super();
-
     }
 
     connectedCallback() {
@@ -72,12 +71,13 @@ class DivTable extends HTMLDivElement {
         this.titleDOM = null;
         this.classList.add("table");
 
-        this.columnModifier = [];
+        /*if (!this.hasOwnProperty("columnModifier"))
+            this.columnModifier = [];
         this.columnOrder = [];
         for (let i = 0; i < this.columnNames.length; i++) {
             this.columnOrder.push(i);
             this.columnModifier.push(null);
-        }
+        }*/
         // first row should be header
         this.rowsDOM = [];
         this.cellsDOM = [];
@@ -99,6 +99,14 @@ class DivTable extends HTMLDivElement {
 
     setTitle(title) {
         this.title = title;
+    }
+
+    setColumnModifier(columnModifier) {
+        this.columnModifier = columnModifier;
+    }
+
+    setColumnOrder(columnOrder) {
+        this.columnOrder = columnOrder;
     }
 
     hideColumn(indexOrColumnName) {
@@ -199,6 +207,7 @@ class DivTable extends HTMLDivElement {
                 //void row[i].offsetWidth;
                 //row[i].classList.add("change");
             }
+            //console.log(this);
             const dataIndex = this.columnOrder[i];
             const func = this.columnModifier[dataIndex];
 
@@ -219,14 +228,6 @@ class DivTable extends HTMLDivElement {
     update(data, metadata) {
         //this.hideOverlay();
         this.fillTable(data, metadata);
-    }
-}
-
-class BaseElement extends HTMLElement {
-    constructor() {
-        super();
-        this.shadow = this.attachShadow({mode: "open"});
-
     }
 }
 
@@ -326,14 +327,13 @@ class OrderBookView extends ObserverBaseElement {
         super.connectedCallback();
         const request = this.createRequestFromAttributes();
         const title = "ORDERBOOK - " + request.askOrBid.toUpperCase() + " - " + request.currencyPair;
-        //this.table = new OrderBookTable(request.recordCount, OrderBookData.getDataFields(), this.shadow, title);
         this.table = document.createElement("div", {is: "order-book-table"});
-        //this.table = new OrderBookTable();
         this.table.setSize(request.recordCount);
         this.table.setColumnNames(OrderBookData.getDataFields());
         this.table.setTitle(title);
         const round3 = (x) => round(x, 3);
-        this.table.columnModifier = [round3, round3, round3, null];
+        this.table.setColumnModifier([round3, round3, round3, null]);
+        this.table.setColumnOrder([0,1,2,3]);
 
         this.notificationBox = document.createElement("div", {is: "notification-box"});
 
