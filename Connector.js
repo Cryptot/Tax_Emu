@@ -161,7 +161,9 @@ let subscriptionManager = {
         }
         return false;
     },
-
+    /**
+     * resubscribe all channels
+     */
     resubscribeAllChannels: function () {
         for (const chanId of this.subscribedChannels.keys()) {
             this.resubscriptionChannels.add(chanId);
@@ -779,13 +781,28 @@ let Connector = {
             });
 
 
-
         });
+        if (navigator.onLine) {
+            Connector.connect();
+        } else {
+            // offline mode
+            ObserverHandler.informObserver({
+                "level": "warn",
+                "title": "no internet connection",
+                "msg": "waiting for connection"
+            });
+        }
+    },
+
+    send: function(data) {
+        if (Connector.ws instanceof WebSocket) {
+            Connector.ws.send(data);
+        }
     },
 
     ws: null,
 
-    pingWebSocket: function() {
+    pingWebSocket: function () {
         const action = {event: "ping"};
         Connector.ws.send(JSON.stringify(action));
     },
@@ -813,10 +830,13 @@ let Connector = {
 
         };
         Connector.ws.onerror = function (err) {
+            console.log("onerror");
+            console.log(err);
         };
 
         Connector.ws.onclose = function (evt) {
             console.log("onclose");
+            console.log(evt);
             if (evt.code !== 1000) {
                 ObserverHandler.informObserver({
                     "level": "warn",
@@ -897,6 +917,7 @@ let MessageHandler = {
                     break;
                 case
                 MessageHandler.eventTypes.pong:
+                    console.log("pong");
                     TimerAndActions.abortAction("waitForPong");
                     break;
             }
@@ -1001,60 +1022,71 @@ let TimerAndActions = {
         xhr.send(null);
     },
 
-    executeAction: function (actionName, timeout=0) {
-        const action = TimerAndActions.timerAndActionConfig[actionName]["action"];
-        if (timeout > 0) {
-            setTimeout(action, timeout);
+    _wrapAction: function (actionName, action) {
+        return function () {
+            action();
+            TimerAndActions.timerAndActionConfig[actionName]["queuedAction"] = null;
+        }
+
+    },
+
+    executeAction: function (actionName, timeout = 0) {
+        const timer = TimerAndActions.timerAndActionConfig[actionName];
+        const isQueued = timer["queuedAction"] !== null;
+        const action = timer["action"];
+        if (timeout >= 0 && !isQueued) {
+            timer["queuedAction"] = setTimeout(TimerAndActions._wrapAction(actionName, action), timeout);
         }
     },
 
-    abortAction: function(actionName) {
-        const action = TimerAndActions.timerAndActionConfig[actionName]["action"];
+    abortAction: function (actionName) {
+        const action = TimerAndActions.timerAndActionConfig[actionName]["queuedAction"];
         clearTimeout(action);
+        TimerAndActions.timerAndActionConfig[actionName]["queuedAction"] = null;
 
     },
 
-    startTimer: function (timerName, firstExecutionIsInstant = true) {
+    startTimer: function (timerName, firstExecutionIsInstant = false) {
         const timer = TimerAndActions.timerAndActionConfig[timerName];
-        const timeout = timer["timeout"];
+        const timeout = timer["timerInterval"];
         const action = timer["action"];
-        const isRunning = timer["isRunning"];
+        const isRunning = timer["runningTimer"] !== null;
 
         if (!isRunning) {
             if (firstExecutionIsInstant) {
                 action();
             }
-            timer["isRunning"] = true;
-            setInterval(action, timeout);
+            timer["runningTimer"] = setInterval(action, timeout);
         }
     },
 
     stopTimer: function (timerName) {
         const timer = TimerAndActions.timerAndActionConfig[timerName];
-        const action = timer["action"];
-        const isRunning = timer["isRunning"];
+        const isRunning = timer["runningTimer"] !== null;
 
         if (isRunning) {
-            clearInterval(action);
-            timer["isRunning"] = false;
+            clearInterval(timer["runningTimer"]);
+            timer["runningTimer"] = null;
         }
     },
 
     timerAndActionConfig: {
         getAllSymbols: {
             timerInterval: 1000 * 60 * 15,
-            action: TimerAndActions._getAllAvailableSymbols,
-            isRunning: false,
+            action: this._getAllAvailableSymbols,
+            runningTimer: null,
+            queuedAction: null,
         },
 
         reconnect: {
             timerInterval: 1000 * 60,
             action: Connector.connect,
-            isRunning: false,
+            runningTimer: null,
+            queuedAction: null,
         },
 
         waitForPong: {
-            action: function() {
+            action: function () {
                 console.log("waitforpong");
                 ObserverHandler.informObserver({
                     "level": "warn",
@@ -1063,9 +1095,12 @@ let TimerAndActions = {
                 });
                 TimerAndActions.startTimer("reconnect");
             },
+            queuedAction: null
         },
         pingWebSocket: {
             action: Connector.pingWebSocket,
+            runningTimer: null,
+            queuedAction: null,
         }
     },
 };
@@ -1189,6 +1224,5 @@ function CandlesRequest(currencyPair, timeFrame, recordCount, initialRecordCount
 }
 
 Connector.initialize();
-Connector.connect();
 
 
