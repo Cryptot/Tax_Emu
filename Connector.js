@@ -1093,12 +1093,27 @@ let TimerAndActions = {
                     "title": "no connection",
                     "msg": "connection test failed, trying to reconnect"
                 });
+                //TODO copy all subscriptions in the queue
                 TimerAndActions.startTimer("reconnect");
             },
             queuedAction: null
         },
         pingWebSocket: {
             action: Connector.pingWebSocket,
+            runningTimer: null,
+            queuedAction: null,
+        },
+
+        cleanUnusedData: {
+            action: function() {
+                for (const [id, obs] of ObserverHandler.observer.entries()) {
+                    if (obs.length === 0) {
+                        subscriptionManager.requestUnsubscription(id);
+                    }
+                }
+
+            },
+            timerInterval: 1000 * 60 * 5,
             runningTimer: null,
             queuedAction: null,
         }
@@ -1224,5 +1239,3 @@ function CandlesRequest(currencyPair, timeFrame, recordCount, initialRecordCount
 }
 
 Connector.initialize();
-
-
