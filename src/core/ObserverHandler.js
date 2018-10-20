@@ -17,31 +17,32 @@ let ObserverHandler = {
         this.stopDataRequest(source); // only one subscription per observer
 
         const apiRequest = this._convertToApiRequest(clientRequest);
+        const subDesc = new SubscriptionDescriptor(source, clientRequest, apiRequest);
+
         const chanId = subscriptionManager.getIdFromRequest(apiRequest);
 
         if (chanId === undefined) {
             // requested data not in local structure
-            subscriptionManager.requestSubscription(apiRequest, {source, clientRequest});
+            subscriptionManager.requestSubscription(subDesc);
         } else {
             // requested data in local structure
-            const newObserver = {source, clientRequest, needInitialData: true};
-            let obs = [];
-            if (this.observer.has(chanId)) {
-                obs = this.observer.get(chanId);
-                obs.push(newObserver);
-            } else {
-                obs.push(newObserver);
-            }
-
-            this.observerChanIdMapping.set(source, chanId);
-            this.observer.set(chanId, obs);
-
-            const dataObject = DataHandler.dataObjects.get(chanId);
-            // data is available
-            this.informObserver({"level": "success", "title": "data is available"});
-            this.updateOneObserver(newObserver, dataObject);
-
+            ObserverHandler._assignObserverToId(chanId, subDesc);
         }
+    },
+
+    _assignObserverToId(chanId, subDesc) {
+        let obs = [];
+        if (this.observer.has(chanId)) {
+            obs = this.observer.get(chanId);
+        }
+        obs.push(subDesc);
+
+        this.observerChanIdMapping.set(subDesc["source"], chanId);
+        this.observer.set(chanId, obs);
+
+        const dataObject = DataHandler.dataObjects.get(chanId);
+        this.informObserver({"level": "success", "title": "data is available"});
+        this.updateOneObserver(subDesc, dataObject);
     },
     /**
      *
@@ -58,8 +59,9 @@ let ObserverHandler = {
                 }
             }
             this.observerChanIdMapping.delete(source);
-            //this.observer.set(chanId, obs);
         }
+        subscriptionManager.subscriptionQueue.remove(source);
+
     },
     /**
      * convert client requests to api requests
@@ -221,9 +223,13 @@ let ObserverHandler = {
         }
     }
     ,
-    informObserver: function (message, chanId = null) {
-        if (chanId instanceof Number) {
-            for (const obs of this.observer.get(chanId)) {
+    informObserver: function (message, chanIdOrListOfSubDesc = null) {
+        if (chanIdOrListOfSubDesc instanceof Number) {
+            for (const obs of this.observer.get(chanIdOrListOfSubDesc)) {
+                obs["source"].info(message);
+            }
+        } else if (chanIdOrListOfSubDesc instanceof Array) {
+            for (const obs of chanIdOrListOfSubDesc) {
                 obs["source"].info(message);
             }
         } else {

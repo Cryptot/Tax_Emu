@@ -33,9 +33,11 @@ let Connector = {
     },
 
     send: function(data) {
-        if (Connector.ws instanceof WebSocket) {
+        if (navigator.onLine && Connector.ws instanceof WebSocket && Connector.ws.readyState === WebSocket.OPEN) {
             Connector.ws.send(data);
+            return true;
         }
+        return false;
     },
 
     ws: null,
@@ -58,13 +60,11 @@ let Connector = {
 
         Connector.ws.onopen = function () {
             TimerAndActions.stopTimer("reconnect");
-
-            for (const sub of subscriptionManager.subscriptionQueue) {
-                subscriptionManager.requestSubscription(sub["action"], sub["observer"])
-            }
-            subscriptionManager.subscriptionQueue = [];
-
             subscriptionManager.resubscribeAllChannels();
+            let subDesc;
+            while ((subDesc = subscriptionManager.subscriptionQueue.pop()) !== null) {
+                subscriptionManager.requestSubscription(subDesc);
+            }
 
         };
         Connector.ws.onerror = function (err) {

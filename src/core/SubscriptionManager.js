@@ -2,10 +2,10 @@ let subscriptionManager = {
 
     subscribedChannels: new Map(),
     //requests that have been sent, but no answer yet
-    pendingQueue: [],
+    pendingQueue: new SubDescriptorQueue(),
 
     //offline queue
-    subscriptionQueue: [],
+    subscriptionQueue: new SubDescriptorQueue(),
 
     resubscriptionChannels: new Set(),
 
@@ -15,15 +15,10 @@ let subscriptionManager = {
      */
     internalSubscribe: function (subscriptionEvent) {
         const ID = subscriptionEvent["chanId"];
-
-        for (let i = this.pendingQueue.length - 1; i >= 0; i--) {
-            const request = this.pendingQueue[i]["action"];
-            const observer = this.pendingQueue[i]["observer"];
-            if (this.responseMatchesRequest(subscriptionEvent, request)) {
-                this.pendingQueue.splice(i, 1);
-                this.subscribedChannels.set(ID, request);
-                ObserverHandler.requestData(observer["source"], observer["clientRequest"]);
-            }
+        const list = this.pendingQueue.popMatchingRequestsSubDescriptors(subscriptionEvent);
+        for (const subDesc of list) {
+            this.subscribedChannels.set(ID, subDesc.apiRequest);
+            ObserverHandler._assignObserverToId(ID, subDesc);
         }
     },
     /**
@@ -32,49 +27,48 @@ let subscriptionManager = {
      */
     internalUnsubscribe: function (unsubscriptionEvent) {
         if (unsubscriptionEvent["status"] === "OK") {
-            const ID = unsubscriptionEvent["chanId"];
-            if (this.resubscriptionChannels.has(ID)) {
-                const observers = ObserverHandler.observer.get(ID);
-                DataHandler.delete(ID);
-                //Notify observer that data stream is closed
-                ObserverHandler.observer.delete(ID);
-                this.subscribedChannels.delete(ID);
-                for (let i = observers.length - 1; i >= 0; i--) {
-                    const source = observers[i]["source"];
-                    const clientRequest = observers[i]["clientRequest"];
-                    ObserverHandler.requestData(source, clientRequest);
-                }
 
+            const ID = unsubscriptionEvent["chanId"];
+            const observers = ObserverHandler.observer.get(ID);
+            DataHandler.delete(ID);
+            ObserverHandler.observer.delete(ID);
+            this.subscribedChannels.delete(ID);
+            if (this.resubscriptionChannels.has(ID)) {
+                //Notify observer that data stream is closed
+                ObserverHandler.informObserver({
+                    "level": "info",
+                    "title": "resubscribing",
+                    "msg": "data stream is closed due to resubscribing"
+                }, observers);
+                for (const subDesc of observers) {
+                    this.requestSubscription(subDesc);
+                }
             } else {
-                DataHandler.delete(ID);
-                ObserverHandler.observer.delete(ID);
-                this.subscribedChannels.delete(ID);
+                ObserverHandler.informObserver({
+                    "level": "info",
+                    "title": "data stream closed",
+                    "msg": "data stream is closed"
+                }, observers);
             }
         }
     },
     /**
      * request a subscription by sending the action to the server
-     * @param {apiRequest} action
-     * @param {ObserverDescriptor} observer
-     * @returns {boolean}
+     * @returns {void}
+     * @param {SubscriptionDescriptor} subDesc
      */
-    requestSubscription: function (action, observer) {
-        const isAlreadyPending = this.isRequestInQueue(action);
-        if (isAlreadyPending) {
-            this.pendingQueue.push({action, observer});
-            return true;
-        }
-        const state = Connector.ws.readyState;
-        if (state === WebSocket.OPEN) {
-            this.pendingQueue.push({action, observer});
-            Connector.ws.send(JSON.stringify(action));
-            return true;
-
+    requestSubscription: function (subDesc) {
+        const isPending = this.pendingQueue.isAlreadyInQueue(subDesc);
+        if (isPending) {
+            this.pendingQueue.add(subDesc);
         } else {
-            this.subscriptionQueue.push({action, observer});
+            const hasBeenSent = Connector.send(JSON.stringify(subDesc.apiRequest));
+            if (hasBeenSent) {
+                this.pendingQueue.add(subDesc);
+            } else {
+                this.subscriptionQueue.add(subDesc);
+            }
         }
-        return false;
-
     },
 
     /**
@@ -87,13 +81,7 @@ let subscriptionManager = {
             "event": "unsubscribe",
             "chanId": channelID
         };
-        const state = Connector.ws.readyState;
-        if (state === WebSocket.OPEN) {
-            Connector.ws.send(JSON.stringify(action));
-            return true;
-        }
-        else
-            return false;
+        return Connector.send(JSON.stringify(action));
     },
     /**
      * Check whether subscribeEventResponse is the response of the subscriptionRequest
@@ -151,24 +139,18 @@ let subscriptionManager = {
     },
 
     /**
-     * Check whether the request has already been sent to the server and is waiting for response
-     * @param subscriptionRequest the api request to initiate a subscription
-     * @returns {boolean} whether the request is queued
+     * resubscribe all currently subscribed channels
+     * @param {boolean} unsubscribeFirst send unsubscribe requests to the server
      */
-    isRequestInQueue: function (subscriptionRequest) {
-        for (let i = this.pendingQueue.length - 1; i >= 0; i--) {
-            if (this._requestEqualsRequest(this.pendingQueue[i]["action"], subscriptionRequest))
-                return true;
-        }
-        return false;
-    },
-    /**
-     * resubscribe all channels
-     */
-    resubscribeAllChannels: function () {
+    resubscribeAllChannels: function (unsubscribeFirst = true) {
         for (const chanId of this.subscribedChannels.keys()) {
             this.resubscriptionChannels.add(chanId);
-            this.requestUnsubscription(chanId);
+            if (unsubscribeFirst) {
+                this.requestUnsubscription(chanId);
+            } else {
+                const unsubscribeEvent = {status: "OK", chanId: chanId};
+                this.internalUnsubscribe(unsubscribeEvent);
+            }
         }
     },
 };
