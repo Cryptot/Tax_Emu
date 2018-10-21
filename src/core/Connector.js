@@ -10,6 +10,8 @@ let Connector = {
             });
             TimerAndActions.executeAction("waitForPong", 2500);
             TimerAndActions.executeAction("pingWebSocket");
+            //TODO deal with the queues of subscription manager
+
         });
         window.addEventListener('offline', function (e) {
             ObserverHandler.informObserver({
@@ -60,11 +62,7 @@ let Connector = {
 
         Connector.ws.onopen = function () {
             TimerAndActions.stopTimer("reconnect");
-            subscriptionManager.resubscribeAllChannels();
-            let subDesc;
-            while ((subDesc = subscriptionManager.subscriptionQueue.pop()) !== null) {
-                subscriptionManager.requestSubscription(subDesc);
-            }
+            //TODO deal with the queues of subscription manager
 
         };
         Connector.ws.onerror = function (err) {
@@ -92,5 +90,7 @@ let Connector = {
     platformStatus: null,
 
     supportedVersion: 2,
+
+    serverId: null
 
 };

@@ -9,6 +9,10 @@ let subscriptionManager = {
 
     resubscriptionChannels: new Set(),
 
+    unsubscriptionQueue: [],
+
+    pendingUnsubscriptions: new Set(),
+
     /**
      * Handles a subscription event from the server
      * @param subscriptionEvent the subscription event from the server
@@ -28,12 +32,14 @@ let subscriptionManager = {
     internalUnsubscribe: function (unsubscriptionEvent) {
         if (unsubscriptionEvent["status"] === "OK") {
 
-            const ID = unsubscriptionEvent["chanId"];
-            const observers = ObserverHandler.observer.get(ID);
-            DataHandler.delete(ID);
-            ObserverHandler.observer.delete(ID);
-            this.subscribedChannels.delete(ID);
-            if (this.resubscriptionChannels.has(ID)) {
+            const chanId = unsubscriptionEvent["chanId"];
+            const observers = ObserverHandler.observer.get(chanId);
+            this.pendingUnsubscriptions.delete(chanId);
+            DataHandler.delete(chanId);
+            ObserverHandler.observer.delete(chanId);
+            this.subscribedChannels.delete(chanId);
+            if (this.resubscriptionChannels.has(chanId)) {
+                this.resubscriptionChannels.delete(chanId);
                 //Notify observer that data stream is closed
                 ObserverHandler.informObserver({
                     "level": "info",
@@ -54,7 +60,6 @@ let subscriptionManager = {
     },
     /**
      * request a subscription by sending the action to the server
-     * @returns {void}
      * @param {SubscriptionDescriptor} subDesc
      */
     requestSubscription: function (subDesc) {
@@ -73,15 +78,19 @@ let subscriptionManager = {
 
     /**
      * Request an unsubscription by sending the desired action to the server
-     * @param {Number} channelID the channel's id
+     * @param {Number} chanId the channel's id
      * @returns {boolean} whether the request has been sent to the server
      */
-    requestUnsubscription: function (channelID) {
+    requestUnsubscription: function (chanId) {
         const action = {
             "event": "unsubscribe",
-            "chanId": channelID
+            "chanId": chanId
         };
-        return Connector.send(JSON.stringify(action));
+        if (!Connector.send(JSON.stringify(action))) {
+            subscriptionManager.unsubscriptionQueue.push(chanId);
+        } else {
+            this.pendingUnsubscriptions.add(chanId);
+        }
     },
     /**
      * Check whether subscribeEventResponse is the response of the subscriptionRequest
@@ -150,6 +159,34 @@ let subscriptionManager = {
             } else {
                 const unsubscribeEvent = {status: "OK", chanId: chanId};
                 this.internalUnsubscribe(unsubscribeEvent);
+            }
+        }
+    },
+    /**
+     * request the subscription of all queued requests
+     */
+    processAllQueuedRequests: function () {
+        let subDesc;
+        while ((subDesc = subscriptionManager.subscriptionQueue.pop()) !== null) {
+            subscriptionManager.requestSubscription(subDesc);
+        }
+    },
+    processAllQueuedUnsubscriptions: function () {
+        for (let i = subscriptionManager.unsubscriptionQueue.length - 1; i >= 0; i--) {
+            subscriptionManager.requestUnsubscription(subscriptionManager.unsubscriptionQueue.splice(i, 1)[0])
+        }
+    },
+
+    moveAllPendingRequestsInQueue: function () {
+        let subDesc;
+        while ((subDesc = subscriptionManager.pendingQueue.pop()) !== null) {
+            subscriptionManager.subscriptionQueue.add(subDesc);
+        }
+    },
+    moveAllResupscriptionRequestsInQueue: function() {
+        for (const chanId of subscriptionManager.resubscriptionChannels) {
+            for (const subDesc of ObserverHandler.observer.get(chanId)) {
+                subscriptionManager.subscriptionQueue.add(subDesc);
             }
         }
     },

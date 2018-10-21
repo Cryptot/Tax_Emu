@@ -58,6 +58,7 @@ let InfoHandler = {
     handleConnectionMessage(message) {
         const status = message["platform"]["status"];
         const version = message["version"];
+        const serverId = message["serverId"];
 
         if (version !== Connector.supportedVersion) {
             console.error("unsupported api version: " + version + ", supported version: " + Connector.supportedVersion);
@@ -65,6 +66,7 @@ let InfoHandler = {
 
         if (status === 1) {
             Connector.platformStatus = 1;
+            Connector.serverId = serverId;
             ObserverHandler.informObserver({
                 "level": "success",
                 "title": "Successfully Connected",
@@ -72,6 +74,7 @@ let InfoHandler = {
             })
         } else if (status === 0) {
             Connector.platformStatus = 0;
+            Connector.serverId = serverId;
             ObserverHandler.informObserver({
                 "level": "warn",
                 "title": "Successfully Connected",
