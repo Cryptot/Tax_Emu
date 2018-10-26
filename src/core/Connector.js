@@ -1,6 +1,17 @@
 let Connector = {
     url: "wss://api.bitfinex.com/ws/2",
 
+    webSocket: null,
+
+    platformStatus: null,
+
+    supportedVersion: 2,
+
+    serverId: null,
+
+    /**
+     * Initializes the API.
+     */
     initialize: function () {
         window.addEventListener('online', function (e) {
             ObserverHandler.informObserver({
@@ -34,16 +45,22 @@ let Connector = {
         TimerAndActions.startTimer("cleanUnusedData");
     },
 
+    /**
+     * Sends data to the connected server if possible.
+     * @param {String} data the data to be sent
+     * @returns {boolean} whether the data could be sent to the server.
+     */
     send: function(data) {
-        if (navigator.onLine && Connector.ws instanceof WebSocket && Connector.ws.readyState === WebSocket.OPEN) {
-            Connector.ws.send(data);
+        if (navigator.onLine && Connector.webSocket instanceof WebSocket && Connector.webSocket.readyState === WebSocket.OPEN) {
+            Connector.webSocket.send(data);
             return true;
         }
         return false;
     },
 
-    ws: null,
-
+    /**
+     * Sends a ping message to the connected server if possible
+     */
     pingWebSocket: function () {
         const action = {event: "ping"};
         if (!Connector.send(JSON.stringify(action))) {
@@ -52,16 +69,15 @@ let Connector = {
     },
 
     /**
-     * establish a connection with the server
+     * Establishes a connection with the server
      */
-
     connect: function () {
 
-        Connector.ws = new WebSocket(Connector.url);
+        Connector.webSocket = new WebSocket(Connector.url);
 
-        Connector.ws.onmessage = MessageHandler.handle;
+        Connector.webSocket.onmessage = MessageHandler.handle;
 
-        Connector.ws.onopen = function () {
+        Connector.webSocket.onopen = function () {
             TimerAndActions.stopTimer("reconnect");
             console.log("onopen");
             Connector.onNewWebSocketConnection();
@@ -69,12 +85,12 @@ let Connector = {
 
 
         };
-        Connector.ws.onerror = function (err) {
+        Connector.webSocket.onerror = function (err) {
             console.log("onerror");
             console.log(err);
         };
 
-        Connector.ws.onclose = function (evt) {
+        Connector.webSocket.onclose = function (evt) {
             console.log("onclose");
             console.log(evt);
             if (evt.code !== 1000) {
@@ -91,14 +107,20 @@ let Connector = {
         }
     },
 
+    /**
+     * Closes the current connection and tries to reconnect to the server.
+     */
     reconnect : function() {
-        if (Connector.ws !== null && (Connector.ws.readyState !== WebSocket.CLOSED || Connector.ws.readyState !== WebSocket.CLOSING)) {
-            Connector.ws.onclose = function() {};
-            Connector.ws.close();
+        if (Connector.webSocket !== null && (Connector.webSocket.readyState !== WebSocket.CLOSED || Connector.webSocket.readyState !== WebSocket.CLOSING)) {
+            Connector.webSocket.onclose = function() {};
+            Connector.webSocket.close();
         }
         Connector.connect();
     },
 
+    /**
+     * Transfers all previous subscription requests to the new connection
+     */
     onNewWebSocketConnection: function() {
         subscriptionManager.clearPendingUnsubscriptions();
         subscriptionManager.clearUnsubscriptionQueue();
@@ -107,17 +129,14 @@ let Connector = {
         subscriptionManager.processAllQueuedRequests();
     },
 
+    /**
+     * Transfer all previous requests that could not be completed or are in the queue to the restored connection
+     */
     onRestoredWebSocketConnection: function() {
         subscriptionManager.moveAllPendingRequestsInQueue();
         subscriptionManager.moveAllPendingUnsupscriptionsInQueue();
         subscriptionManager.processAllQueuedUnsubscriptions();
         subscriptionManager.processAllQueuedRequests();
-    },
-
-    platformStatus: null,
-
-    supportedVersion: 2,
-
-    serverId: null
+    }
 
 };
