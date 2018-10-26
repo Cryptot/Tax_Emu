@@ -1,21 +1,34 @@
 let subscriptionManager = {
 
     subscribedChannels: new Map(),
-    //requests that have been sent, but no answer yet
+    /**
+     * Sent subscription requests for which no response has yet been received.
+     */
     pendingQueue: new SubDescriptorQueue(),
 
-    //offline queue
+    /**
+     * Subscription requests that have not yet been sent to the server.
+     */
     subscriptionQueue: new SubDescriptorQueue(),
 
+    /**
+     * Channel ids to resubscribe.
+     */
     resubscriptionChannels: new Set(),
 
+    /**
+     * Unsubscription requests that have not yet been sent to the server.
+     */
     unsubscriptionQueue: [],
 
+    /**
+     * Sent unsubscription requests for which no response has yet been received.
+     */
     pendingUnsubscriptions: new Set(),
 
     /**
-     * Handles a subscription event from the server
-     * @param subscriptionEvent the subscription event from the server
+     * Handles a subscription event from the server.
+     * @param {Object} subscriptionEvent the subscription event from the server
      */
     internalSubscribe: function (subscriptionEvent) {
         const ID = subscriptionEvent["chanId"];
@@ -25,9 +38,10 @@ let subscriptionManager = {
             ObserverHandler._assignObserverToId(ID, subDesc);
         }
     },
+
     /**
-     * Handles an unsubscription event from the server
-     * @param unsubscriptionEvent the unsubscription event from the server
+     * Handles an unsubscription event from the server.
+     * @param {Object} unsubscriptionEvent the unsubscription event from the server
      */
     internalUnsubscribe: function (unsubscriptionEvent) {
         if (unsubscriptionEvent["status"] === "OK") {
@@ -61,8 +75,8 @@ let subscriptionManager = {
         }
     },
     /**
-     * request a subscription by sending the action to the server
-     * @param {SubscriptionDescriptor} subDesc
+     * Requests a subscription from the server.
+     * @param {SubscriptionDescriptor} subDesc the requested subscription
      */
     requestSubscription: function (subDesc) {
         const isPending = this.pendingQueue.isAlreadyInQueue(subDesc);
@@ -79,9 +93,8 @@ let subscriptionManager = {
     },
 
     /**
-     * Request an unsubscription by sending the desired action to the server
+     * Request an unsubscription from the server.
      * @param {Number} chanId the channel's id
-     * @returns {boolean} whether the request has been sent to the server
      */
     requestUnsubscription: function (chanId) {
         const action = {
@@ -94,10 +107,11 @@ let subscriptionManager = {
             this.pendingUnsubscriptions.add(chanId);
         }
     },
+
     /**
-     * Check whether subscribeEventResponse is the response of the subscriptionRequest
-     * @param subscriptionEventResponse the response object
-     * @param subscriptionRequest the request object
+     * Checks whether subscribeEventResponse is the response of the subscriptionRequest.
+     * @param {Object} subscriptionEventResponse the response object
+     * @param {APIRequest} subscriptionRequest the request object
      * @returns {boolean} whether subscribeEventResponse is the response of the subscriptionRequest
      */
     responseMatchesRequest: function (subscriptionEventResponse, subscriptionRequest) {
@@ -110,7 +124,7 @@ let subscriptionManager = {
     },
 
     /**
-     * Get the id's channel name
+     * Get the id's channel name.
      * @param {Number} channelID the channel's id
      * @returns {String} the id's channel name
      */
@@ -120,9 +134,9 @@ let subscriptionManager = {
     },
 
     /**
-     * Check whether both requests are equal
-     * @param request1 an api request
-     * @param request2 an api request
+     * Check whether both requests are equal.
+     * @param {APIRequest} request1 an api request
+     * @param {APIRequest} request2 an api request
      * @returns {boolean} whether both requests are equal
      * @private
      */
@@ -138,8 +152,8 @@ let subscriptionManager = {
 
     /**
      * Get the channel's id if the channel is already subscribed
-     * @param subscriptionRequest the request to subscribe a channel
-     * @returns {Number|undefined}
+     * @param {APIRequest} subscriptionRequest an api request
+     * @returns {Number|undefined} the channel's id or undefined if the channel is not subscribed
      */
     getIdFromRequest: function (subscriptionRequest) {
         for (const [id, request] of this.subscribedChannels.entries()) {
@@ -150,8 +164,8 @@ let subscriptionManager = {
     },
 
     /**
-     * resubscribe all currently subscribed channels
-     * @param {boolean} unsubscribeFirst send unsubscribe requests to the server
+     * Resubscribes all currently subscribed channels.
+     * @param {boolean} unsubscribeFirst send unsubscribe requests to the server, before request the subscriptions.
      */
     resubscribeAllChannels: function (unsubscribeFirst = true) {
         for (const chanId of this.subscribedChannels.keys()) {
@@ -164,8 +178,9 @@ let subscriptionManager = {
             }
         }
     },
+
     /**
-     * request the subscription of all queued requests
+     * Requests the subscription of all queued requests.
      */
     processAllQueuedRequests: function () {
         let subDesc;
@@ -173,18 +188,29 @@ let subscriptionManager = {
             subscriptionManager.requestSubscription(subDesc);
         }
     },
+
+    /**
+     * Requests the unsubscription of all queued channels.
+     */
     processAllQueuedUnsubscriptions: function () {
         for (let i = subscriptionManager.unsubscriptionQueue.length - 1; i >= 0; i--) {
             subscriptionManager.requestUnsubscription(subscriptionManager.unsubscriptionQueue.splice(i, 1)[0])
         }
     },
 
+    /**
+     * Transfers all pending requests to the request queue.
+     */
     moveAllPendingRequestsInQueue: function () {
         let subDesc;
         while ((subDesc = subscriptionManager.pendingQueue.pop()) !== null) {
             subscriptionManager.subscriptionQueue.add(subDesc);
         }
     },
+
+    /**
+     * Transfers all pending channels to unsubscribe to the unsubscription queue.
+     */
     moveAllPendingUnsupscriptionsInQueue: function () {
         for (const chanId of subscriptionManager.pendingUnsubscriptions) {
             subscriptionManager.unsubscriptionQueue.add(chanId);
@@ -192,10 +218,16 @@ let subscriptionManager = {
         subscriptionManager.pendingUnsubscriptions.clear();
     },
 
+    /**
+     * Clears the unsubscription queue.
+     */
     clearUnsubscriptionQueue: function () {
         subscriptionManager.unsubscriptionQueue.length = 0;
     },
 
+    /**
+     * Clears all pending unsubcriptions.
+     */
     clearPendingUnsubscriptions: function () {
         subscriptionManager.pendingUnsubscriptions.clear();
     }
