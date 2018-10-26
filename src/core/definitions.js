@@ -17,7 +17,7 @@
  */
 
 /**
- * @typedef {(apiTickerRequest|apiCandlesRequest|apiOrderBookRequest|apiTradesRequest)} apiRequest
+ * @typedef {(apiTickerRequest|apiCandlesRequest|apiOrderBookRequest|apiTradesRequest)} APIRequest
  */
 
 /**
