@@ -5,6 +5,12 @@ class SubDescriptorQueue {
         this.offset = 0;
     }
 
+    clear() {
+        this.sourcePositionMapping.clear();
+        this.queue.length = 0;
+        this.offset = 0;
+    }
+
     add(subDesc) {
         if (this.sourcePositionMapping.has(subDesc.source)) {
             const position = this.sourcePositionMapping.get(subDesc.source) - this.offset;

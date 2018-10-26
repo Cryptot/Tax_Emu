@@ -33,28 +33,30 @@ let subscriptionManager = {
         if (unsubscriptionEvent["status"] === "OK") {
 
             const chanId = unsubscriptionEvent["chanId"];
-            const observers = ObserverHandler.observer.get(chanId);
-            this.pendingUnsubscriptions.delete(chanId);
-            DataHandler.delete(chanId);
-            ObserverHandler.observer.delete(chanId);
-            this.subscribedChannels.delete(chanId);
-            if (this.resubscriptionChannels.has(chanId)) {
-                this.resubscriptionChannels.delete(chanId);
-                //Notify observer that data stream is closed
-                ObserverHandler.informObserver({
-                    "level": "info",
-                    "title": "resubscribing",
-                    "msg": "data stream is closed due to resubscribing"
-                }, observers);
-                for (const subDesc of observers) {
-                    this.requestSubscription(subDesc);
+            if (chanId !== undefined && this.subscribedChannels.has(chanId)) {
+                const observers = ObserverHandler.observer.get(chanId);
+                this.pendingUnsubscriptions.delete(chanId);
+                DataHandler.delete(chanId);
+                ObserverHandler.observer.delete(chanId);
+                this.subscribedChannels.delete(chanId);
+                if (this.resubscriptionChannels.has(chanId)) {
+                    this.resubscriptionChannels.delete(chanId);
+                    //Notify observer that data stream is closed
+                    ObserverHandler.informObserver({
+                        "level": "info",
+                        "title": "resubscribing",
+                        "msg": "data stream is closed due to resubscribing"
+                    }, observers);
+                    for (const subDesc of observers) {
+                        this.requestSubscription(subDesc);
+                    }
+                } else {
+                    ObserverHandler.informObserver({
+                        "level": "info",
+                        "title": "data stream closed",
+                        "msg": "data stream is closed"
+                    }, observers);
                 }
-            } else {
-                ObserverHandler.informObserver({
-                    "level": "info",
-                    "title": "data stream closed",
-                    "msg": "data stream is closed"
-                }, observers);
             }
         }
     },
@@ -183,13 +185,20 @@ let subscriptionManager = {
             subscriptionManager.subscriptionQueue.add(subDesc);
         }
     },
-    moveAllResupscriptionRequestsInQueue: function() {
-        for (const chanId of subscriptionManager.resubscriptionChannels) {
-            for (const subDesc of ObserverHandler.observer.get(chanId)) {
-                subscriptionManager.subscriptionQueue.add(subDesc);
-            }
+    moveAllPendingUnsupscriptionsInQueue: function () {
+        for (const chanId of subscriptionManager.pendingUnsubscriptions) {
+            subscriptionManager.unsubscriptionQueue.add(chanId);
         }
+        subscriptionManager.pendingUnsubscriptions.clear();
     },
+
+    clearUnsubscriptionQueue: function () {
+        subscriptionManager.unsubscriptionQueue.length = 0;
+    },
+
+    clearPendingUnsubscriptions: function () {
+        subscriptionManager.pendingUnsubscriptions.clear();
+    }
 };
 
 

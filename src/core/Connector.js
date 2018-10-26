@@ -8,9 +8,8 @@ let Connector = {
                 "title": "connection restored",
                 "msg": "connected to the internet"
             });
-            TimerAndActions.executeAction("waitForPong", 2500);
+            TimerAndActions.executeAction("waitForPong", 1000);
             TimerAndActions.executeAction("pingWebSocket");
-            //TODO deal with the queues of subscription manager
 
         });
         window.addEventListener('offline', function (e) {
@@ -32,6 +31,7 @@ let Connector = {
                 "msg": "waiting for connection"
             });
         }
+        TimerAndActions.startTimer("cleanUnusedData");
     },
 
     send: function(data) {
@@ -46,7 +46,9 @@ let Connector = {
 
     pingWebSocket: function () {
         const action = {event: "ping"};
-        Connector.ws.send(JSON.stringify(action));
+        if (!Connector.send(JSON.stringify(action))) {
+
+        }
     },
 
     /**
@@ -54,7 +56,6 @@ let Connector = {
      */
 
     connect: function () {
-        Connector.ws = null;
 
         Connector.ws = new WebSocket(Connector.url);
 
@@ -62,7 +63,10 @@ let Connector = {
 
         Connector.ws.onopen = function () {
             TimerAndActions.stopTimer("reconnect");
-            //TODO deal with the queues of subscription manager
+            console.log("onopen");
+            Connector.onNewWebSocketConnection();
+
+
 
         };
         Connector.ws.onerror = function (err) {
@@ -85,6 +89,29 @@ let Connector = {
                 console.info("connection closed normally");
             }
         }
+    },
+
+    reconnect : function() {
+        if (Connector.ws !== null && (Connector.ws.readyState !== WebSocket.CLOSED || Connector.ws.readyState !== WebSocket.CLOSING)) {
+            Connector.ws.onclose = function() {};
+            Connector.ws.close();
+        }
+        Connector.connect();
+    },
+
+    onNewWebSocketConnection: function() {
+        subscriptionManager.clearPendingUnsubscriptions();
+        subscriptionManager.clearUnsubscriptionQueue();
+        subscriptionManager.moveAllPendingRequestsInQueue();
+        subscriptionManager.resubscribeAllChannels(false);
+        subscriptionManager.processAllQueuedRequests();
+    },
+
+    onRestoredWebSocketConnection: function() {
+        subscriptionManager.moveAllPendingRequestsInQueue();
+        subscriptionManager.moveAllPendingUnsupscriptionsInQueue();
+        subscriptionManager.processAllQueuedUnsubscriptions();
+        subscriptionManager.processAllQueuedRequests();
     },
 
     platformStatus: null,

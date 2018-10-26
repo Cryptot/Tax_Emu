@@ -12,8 +12,31 @@ let ErrorHandler = {
         10401: "Not subscribed",
 
     },
-    handle: function (errorCode) {
+    handle: function (errorMessage) {
+        const errorCode = errorMessage["code"];
         console.log(this.errorCodes[errorCode]);
+        switch (errorCode) {
+            case 10301:
+                let needRestart = false;
+                let listOfSubDesc = subscriptionManager.pendingQueue.popMatchingRequestsSubDescriptors(errorMessage);
+                for (const subDesc of listOfSubDesc) {
+                    const chanId = subscriptionManager.getIdFromRequest(subDesc.apiRequest);
+                    // if this is undefined the subscription is lost -> need new websocket connection
+                    if (chanId === undefined) {
+                        needRestart = true;
+                        break;
+                    }
+                    ObserverHandler._assignObserverToId(chanId, subDesc);
+                }
+                if (needRestart) {
+                    TimerAndActions.executeAction("reconnect");
+                }
+                break;
+            case 10400:
+                const chanId = errorMessage["chanId"];
+                subscriptionManager.internalUnsubscribe({status: "OK", chanId: chanId});
+                break;
+        }
 
     }
 };

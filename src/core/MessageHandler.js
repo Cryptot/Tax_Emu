@@ -23,6 +23,7 @@ let MessageHandler = {
             } else {
                 if (DataHandler.dataObjects.has(chanId)) {
                     //is update
+                    console.log("data-update");
                     DataHandler.update(receivedData)
                 } else {
                     //is snapshot
@@ -33,7 +34,7 @@ let MessageHandler = {
         } else if (receivedData.hasOwnProperty("event")) {
             switch (receivedData.event) {
                 case MessageHandler.eventTypes.error:
-                    ErrorHandler.handle(receivedData.code);
+                    ErrorHandler.handle(receivedData);
 
                     break;
 
@@ -59,7 +60,9 @@ let MessageHandler = {
                 case
                 MessageHandler.eventTypes.pong:
                     console.log("pong");
-                    TimerAndActions.abortAction("waitForPong");
+                    if (TimerAndActions.abortAction("waitForPong")) {
+                        Connector.onRestoredWebSocketConnection();
+                    }
                     break;
             }
         }

@@ -13,27 +13,36 @@ let TimerAndActions = {
         xhr.send(null);
     },
 
-    _wrapAction: function (actionName, action) {
+    _wrapAction: function (actionName, action, params=null) {
         return function () {
-            action();
+            if (params !== null) {
+                action(params);
+            } else {
+                action();
+            }
             TimerAndActions.timerAndActionConfig[actionName]["queuedAction"] = null;
         }
-
     },
 
-    executeAction: function (actionName, timeout = 0) {
+    executeAction: function (actionName, timeout = 0, params = null) {
         const timer = TimerAndActions.timerAndActionConfig[actionName];
         const isQueued = timer["queuedAction"] !== null;
         const action = timer["action"];
         if (timeout >= 0 && !isQueued) {
-            timer["queuedAction"] = setTimeout(TimerAndActions._wrapAction(actionName, action), timeout);
+            timer["queuedAction"] = setTimeout(TimerAndActions._wrapAction(actionName, action, params), timeout);
+            return true;
         }
+        return false;
     },
 
     abortAction: function (actionName) {
         const action = TimerAndActions.timerAndActionConfig[actionName]["queuedAction"];
-        clearTimeout(action);
-        TimerAndActions.timerAndActionConfig[actionName]["queuedAction"] = null;
+        if (action !== null) {
+            clearTimeout(action);
+            TimerAndActions.timerAndActionConfig[actionName]["queuedAction"] = null;
+            return true;
+        }
+        return false;
 
     },
 
@@ -70,8 +79,8 @@ let TimerAndActions = {
         },
 
         reconnect: {
-            timerInterval: 1000 * 60,
-            action: Connector.connect,
+            timerInterval: 1000 * 10,
+            action: Connector.reconnect,
             runningTimer: null,
             queuedAction: null,
         },
@@ -84,7 +93,6 @@ let TimerAndActions = {
                     "title": "no connection",
                     "msg": "connection test failed, trying to reconnect"
                 });
-                //TODO copy all subscriptions in the queue
                 TimerAndActions.startTimer("reconnect");
             },
             queuedAction: null
@@ -96,7 +104,7 @@ let TimerAndActions = {
         },
 
         cleanUnusedData: {
-            action: function() {
+            action: function () {
                 for (const [id, obs] of ObserverHandler.observer.entries()) {
                     if (obs.length === 0) {
                         subscriptionManager.requestUnsubscription(id);
