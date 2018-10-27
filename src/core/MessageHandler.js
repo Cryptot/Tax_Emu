@@ -40,7 +40,7 @@ let MessageHandler = {
 
                 case MessageHandler.eventTypes.info:
                     if (receivedData.hasOwnProperty("code")) {
-                        InfoHandler.handle(receivedData.code);
+                        InfoHandler.handle(receivedData);
                     } else {
                         //
                         InfoHandler.handleConnectionMessage(receivedData);

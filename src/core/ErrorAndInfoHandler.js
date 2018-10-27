@@ -12,6 +12,11 @@ let ErrorHandler = {
         10401: "Not subscribed",
 
     },
+
+    /**
+     * Handles the error messages from the server.
+     * @param {Object} errorMessage the message from the server
+     */
     handle: function (errorMessage) {
         const errorCode = errorMessage["code"];
         console.log(this.errorCodes[errorCode]);
@@ -47,8 +52,12 @@ let InfoHandler = {
         20060: "Entering in Maintenance mode",
         20061: "Maintenance ended"
     },
-
-    handle: function (infoCode) {
+    /**
+     * Handles the info messages with a code from the server.
+     * @param {Object} infoMessage the message from the server
+     */
+    handle: function (infoMessage) {
+        const infoCode = infoMessage["code"];
         console.log(this.infoCodes[infoCode]);
         switch (infoCode) {
             case 20051:
@@ -71,13 +80,17 @@ let InfoHandler = {
                 this.resubscribeAllChannels();
                 ObserverHandler.informObserver({
                     "level": "info",
-                    "title": this.infoCodes[infoCode],
+                    "title": this.infoCodes[infoMessage],
                     "msg": "server is operative again"
                 });
                 break;
         }
     },
 
+    /**
+     * Handles the info message after connecting to the server.
+     * @param {Object} message the info message from the server
+     */
     handleConnectionMessage(message) {
         const status = message["platform"]["status"];
         const version = message["version"];
