@@ -1,23 +1,26 @@
 let ObserverHandler = {
 
-    /**
-     * Map<Number, ObserverDescriptor>
-     */
 
+    /**
+     * Maps channel ids to SubscriptionDescriptors
+     */
     observer: new Map(),
 
+    /**
+     * Maps observers to channel ids
+     */
     observerChanIdMapping: new Map(),
 
     /**
-     * register a node for specific data updates
-     * @param {ObserverBaseElement} source the DOM node to which the data is sent
+     * Registers an observer for specific data updates.
+     * @param {Observer|ObserverBaseElement} observer the observer that requested data
      * @param {ClientRequest} clientRequest the object to request specific data
      */
-    requestData: function (source, clientRequest) {
-        this.stopDataRequest(source); // only one subscription per observer
+    requestData: function (observer, clientRequest) {
+        this.stopDataRequest(observer); // only one subscription per observer
 
         const apiRequest = this._convertToApiRequest(clientRequest);
-        const subDesc = new SubscriptionDescriptor(source, clientRequest, apiRequest);
+        const subDesc = new SubscriptionDescriptor(observer, clientRequest, apiRequest);
 
         const chanId = subscriptionManager.getIdFromRequest(apiRequest);
 
@@ -29,7 +32,12 @@ let ObserverHandler = {
             ObserverHandler._assignObserverToId(chanId, subDesc);
         }
     },
-
+    /**
+     * Assigns the observer to the channel id that matches its data request.
+     * @param {Number} chanId
+     * @param {SubscriptionDescriptor} subDesc the SubscriptionDescriptor containing the observer
+     * @private
+     */
     _assignObserverToId(chanId, subDesc) {
         let obs = [];
         if (this.observer.has(chanId)) {
@@ -37,7 +45,7 @@ let ObserverHandler = {
         }
         obs.push(subDesc);
 
-        this.observerChanIdMapping.set(subDesc["source"], chanId);
+        this.observerChanIdMapping.set(subDesc.observer, chanId);
         this.observer.set(chanId, obs);
 
         const dataObject = DataHandler.dataObjects.get(chanId);
@@ -45,28 +53,28 @@ let ObserverHandler = {
         this.updateOneObserver(subDesc, dataObject);
     },
     /**
-     *
-     * @param {ObserverBaseElement} source
+     * Unregisters an observer from its requested data.
+     * @param {Observer|ObserverBaseElement} observer the observer to unregister
      */
-    stopDataRequest: function (source) {
-        const chanId = this.observerChanIdMapping.get(source);
+    stopDataRequest: function (observer) {
+        const chanId = this.observerChanIdMapping.get(observer);
         if (chanId !== undefined) {
-            const obs = this.observer.get(chanId);
-            for (let i = obs.length - 1; i => 0; i--) {
-                if (obs[i]["source"] === source) {
-                    obs.splice(i, 1);
+            const subDescs = this.observer.get(chanId);
+            for (let i = subDescs.length - 1; i => 0; i--) {
+                if (subDescs[i].observer === observer) {
+                    subDescs.splice(i, 1);
                     break;
                 }
             }
-            this.observerChanIdMapping.delete(source);
+            this.observerChanIdMapping.delete(observer);
         }
-        subscriptionManager.subscriptionQueue.remove(source);
+        subscriptionManager.subscriptionQueue.remove(observer);
 
     },
     /**
-     * convert client requests to api requests
+     * Converts client requests to api requests
      * @param {ClientRequest} clientRequest the client request
-     * @returns {apiRequest}
+     * @returns {APIRequest} the api requests for the server
      * @private
      */
     _convertToApiRequest: function (clientRequest) {
@@ -102,13 +110,13 @@ let ObserverHandler = {
             }
     },
     /**
-     * update the observer with order book data
-     * @param {ObserverDescriptor} observer
-     * @param {OrderBookData} bookDataObject
+     * Updates an observer with order book data.
+     * @param {SubscriptionDescriptor} subDesc the SubscriptionDescriptor containing the observer
+     * @param {OrderBookData} bookDataObject the object containing the order book data.
      */
-    updateOrderBookObserver: function (observer, bookDataObject) {
-        const clientRequest = observer["clientRequest"];
-        const source = observer["source"];
+    updateOrderBookObserver: function (subDesc, bookDataObject) {
+        const clientRequest = subDesc.clientRequest;
+        const source = subDesc.observer;
         let eventData;
         const type = clientRequest["askOrBid"];
 
@@ -124,27 +132,27 @@ let ObserverHandler = {
 
     },
     /**
-     * update the observer with ticker data
-     * @param {ObserverDescriptor} observer
+     * Updates an observer with ticker data.
+     * @param {SubscriptionDescriptor} subDesc the SubscriptionDescriptor containing the observer
      * @param {TickerData} tickerDataObject
      * @param {boolean} needInitialData
      */
-    updateTickerObserver: function (observer, tickerDataObject, needInitialData) {
-        const clientRequest = observer["clientRequest"];
-        const source = observer["source"];
+    updateTickerObserver: function (subDesc, tickerDataObject, needInitialData) {
+        const clientRequest = subDesc.clientRequest;
+        const source = subDesc.observer;
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
         const eventData = tickerDataObject.data.slice(0, recordCount);
         source.update(eventData);
     },
     /**
-     * update the observer with trades data
-     * @param {ObserverDescriptor} observer
+     * Updates the observer with trades data.
+     * @param {SubscriptionDescriptor} subDesc the SubscriptionDescriptor containing the observer
      * @param {TradesData} tradesDataObject
      * @param {boolean} needInitialData
      */
-    updateTradesObserver: function (observer, tradesDataObject, needInitialData) {
-        const clientRequest = observer["clientRequest"];
-        const source = observer["source"];
+    updateTradesObserver: function (subDesc, tradesDataObject, needInitialData) {
+        const clientRequest = subDesc.clientRequest;
+        const source = subDesc.observer;
         let eventData;
         const type = clientRequest["soldOrBoughtOrBoth"];
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
@@ -165,14 +173,14 @@ let ObserverHandler = {
         }
     },
     /**
-     * update the observer with candle data
-     * @param {ObserverDescriptor} observer
+     * Updates the observer with candle data.
+     * @param {SubscriptionDescriptor} subDesc the SubscriptionDescriptor containing the observer
      * @param {CandlesData} CandlesDataObject
      * @param {boolean} needInitialData
      */
-    updateCandlesObserver: function (observer, CandlesDataObject, needInitialData) {
-        const clientRequest = observer["clientRequest"];
-        const source = observer["source"];
+    updateCandlesObserver: function (subDesc, CandlesDataObject, needInitialData) {
+        const clientRequest = subDesc.clientRequest;
+        const source = subDesc.observer;
         let eventData;
         const recordCount = (needInitialData) ? clientRequest["initialRecordCount"] : clientRequest["recordCount"];
 
@@ -182,34 +190,34 @@ let ObserverHandler = {
     },
 
     /**
-     * update the given observer with the data in dataObject
-     * @param {ObserverDescriptor} observer
+     * Updates an observer with the data in dataObject.
+     * @param {SubscriptionDescriptor} subDesc the SubscriptionDescriptor containing the observer
      * @param {DataObject} dataObject
      */
-    updateOneObserver: function (observer, dataObject) {
+    updateOneObserver: function (subDesc, dataObject) {
         if (dataObject === undefined)
             return;
 
-        const needInitialData = observer.hasOwnProperty("needInitialData") ? observer["needInitialData"] : false;
+        const needInitialData = subDesc.needInitialData;
 
-        const clientRequest = observer["clientRequest"];
-        observer["needInitialData"] = false;
+        const clientRequest = subDesc.clientRequest;
+        subDesc.needInitialData = false;
 
         if (clientRequest instanceof OrderBookRequest) {
-            this.updateOrderBookObserver(observer, dataObject);
+            this.updateOrderBookObserver(subDesc, dataObject);
         }
         if (clientRequest instanceof TickerRequest) {
-            this.updateTickerObserver(observer, dataObject, needInitialData);
+            this.updateTickerObserver(subDesc, dataObject, needInitialData);
         }
         if (clientRequest instanceof TradesRequest) {
-            this.updateTradesObserver(observer, dataObject, needInitialData);
+            this.updateTradesObserver(subDesc, dataObject, needInitialData);
         }
         if (clientRequest instanceof CandlesRequest) {
-            this.updateCandlesObserver(observer, dataObject, needInitialData);
+            this.updateCandlesObserver(subDesc, dataObject, needInitialData);
         }
     },
     /**
-     * update all observers, which subscribed to the channel specified by the id
+     * Updates all observers, which subscribed to the channel specified by the id.
      * @param {Number} chanId the channel's id
      */
     updateAllObservers: function (chanId) {
@@ -221,21 +229,26 @@ let ObserverHandler = {
         for (let i = 0; i < obs.length; i++) {
             this.updateOneObserver(obs[i], dataObject)
         }
-    }
-    ,
+    },
+
+    /**
+     * Sends a message to the observers of a channel.
+     * @param {Object} message the message to send
+     * @param {Number} chanIdOrListOfSubDesc the channel id for channel specific observers or null for all observers
+     */
     informObserver: function (message, chanIdOrListOfSubDesc = null) {
         if (chanIdOrListOfSubDesc instanceof Number) {
             for (const obs of this.observer.get(chanIdOrListOfSubDesc)) {
-                obs["source"].info(message);
+                obs["observer"].info(message);
             }
         } else if (chanIdOrListOfSubDesc instanceof Array) {
             for (const obs of chanIdOrListOfSubDesc) {
-                obs["source"].info(message);
+                obs["observer"].info(message);
             }
         } else {
             for (const value of this.observer.values()) {
                 for (const obs of value) {
-                    obs["source"].info(message);
+                    obs["observer"].info(message);
                 }
             }
         }

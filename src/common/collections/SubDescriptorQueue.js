@@ -19,12 +19,12 @@ class SubDescriptorQueue {
      * @param {SubscriptionDescriptor} subDesc the element to be added
      */
     add(subDesc) {
-        if (this.sourcePositionMapping.has(subDesc.source)) {
-            const position = this.sourcePositionMapping.get(subDesc.source) - this.offset;
+        if (this.sourcePositionMapping.has(subDesc.observer)) {
+            const position = this.sourcePositionMapping.get(subDesc.observer) - this.offset;
             this.queue[position] = subDesc;
         } else {
             const position = this.queue.length + this.offset;
-            this.sourcePositionMapping.set(subDesc.source, position);
+            this.sourcePositionMapping.set(subDesc.observer, position);
             this.queue.push(subDesc);
         }
     }
@@ -38,14 +38,14 @@ class SubDescriptorQueue {
             return null;
         }
         const subDesc = this.queue.shift();
-        this.sourcePositionMapping.delete(subDesc.source);
+        this.sourcePositionMapping.delete(subDesc.observer);
         this.offset += 1;
         return subDesc;
     }
 
     /**
      * Removes an SubscriptionDescriptor from the queue.
-     * @param {Observer|ObserverBaseElement} source the source of the SubscriptionDescriptor
+     * @param {Observer|ObserverBaseElement} source the observer of the SubscriptionDescriptor
      * @returns {boolean} whether the SubscriptionDescriptor was in the queue
      */
     remove(source) {
@@ -70,7 +70,7 @@ class SubDescriptorQueue {
             const subDesc = this.queue[i];
             if (subscriptionManager.responseMatchesRequest(response, subDesc.apiRequest)) {
                 matchingSubDescriptors.push(subDesc);
-                this.sourcePositionMapping.delete(subDesc.source);
+                this.sourcePositionMapping.delete(subDesc.observer);
                 this.queue.splice(i, 1);
             }
         }
@@ -99,13 +99,13 @@ class SubDescriptorQueue {
 class SubscriptionDescriptor {
     /**
      * Creates a SubscriptionDescriptor
-     * @param {Observer|ObserverBaseElement} source the origin of the request
-     * @param {ClientRequest} clientRequest the request of the source
+     * @param {Observer|ObserverBaseElement} observer the origin of the request
+     * @param {ClientRequest} clientRequest the request of the observer
      * @param {APIRequest} apiRequest the request to be sent to the server
-     * @param {boolean} needInitialData has the source not yet received data
+     * @param {boolean} needInitialData has the observer not yet received data
      */
-    constructor(source, clientRequest, apiRequest, needInitialData=true) {
-        this.source = source;
+    constructor(observer, clientRequest, apiRequest, needInitialData=true) {
+        this.observer = observer;
         this.clientRequest = clientRequest;
         this.apiRequest = apiRequest;
         this.needInitialData = needInitialData;

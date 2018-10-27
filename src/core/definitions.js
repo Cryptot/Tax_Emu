@@ -6,9 +6,9 @@
 /**
  * An object describing an observer
  * @typedef {Object} ObserverDescriptor
- * @property {ObserverBaseElement} source the element which receives the data
- * @property {ClientRequest} clientRequest the request which source has sent
- * @property {boolean} [needInitialData] indicates whether source has not yet received any data
+ * @property {ObserverBaseElement} observer the element which receives the data
+ * @property {ClientRequest} clientRequest the request which observer has sent
+ * @property {boolean} [needInitialData] indicates whether observer has not yet received any data
  */
 
 /**
